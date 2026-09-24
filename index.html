@@ -1260,7 +1260,7 @@
   var anton, ringMesh, sling, slingBandL, slingBandR, landRing, blob, arcDots = [];
   var pools = {}, marks = [], snow, snowPos;
   var ok3d = !!TH;
-  var SPARSAM = false;        // wird nach den ersten Sekunden anhand der Bildrate gesetzt
+  var SPARSAM = false;        // Stufe 2, siehe setzeStufe()
   var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   // Ältere Geräte melden wenig Kerne oder Speicher – dann von Anfang an sparsam
   var IOS_WEAK = IOS && (navigator.hardwareConcurrency || 4) <= 2;
@@ -1921,7 +1921,8 @@
                      state: function () { return S; }, solids: function () { return solidsN; },
                      renderer: function () { return renderer; }, sun: function () { return sun; },
                      scene: function () { return scene; }, terrain: function () { return terrain; },
-                     camera: function () { return camera; } };
+                     camera: function () { return camera; },
+                     stufe: function () { return { stufe: STUFE, sparsam: SPARSAM, view: VIEW }; } };
   }
   function hideRest() {
     for (var k in pools) {
@@ -2221,25 +2222,47 @@
   // ---------- Bild bauen ----------
   var camPos = { x: -16, y: 6, z: 0 }, camLook = { x: 0, y: 0, z: 0 };
 
-  // Nach zwei Sekunden prüfen, ob das Gerät mitkommt
-  var perfFrames = 0, perfStart = 0;
+  // Leistungsstufen statt einer einmaligen Entscheidung.
+  //
+  // Vorher wurde die Bildrate ueber die ersten 2,2 Sekunden gemessen - also
+  // genau waehrend Shader uebersetzt, Texturen erzeugt und ueber 2500 Objekte
+  // gebaut werden. Faellt sie dabei unter 26, schaltete das Spiel dauerhaft
+  // und unwiderruflich in den Sparmodus, selbst wenn das Geraet danach
+  // muehelos mitgekommen waere. Auf dem iPhone ist genau das passiert.
+  //
+  // Jetzt: Anlaufzeit abwarten, dann laufend in Fenstern messen. Bei zu
+  // wenig Bildern eine Stufe herunter, bei anhaltend viel Luft wieder herauf.
+  // Die Hysterese (drei gute Fenster) verhindert Hin- und Herschalten.
+  var STUFE = 0;                    // 0 voll, 1 reduziert, 2 sparsam
+  var perfFrames = 0, perfStart = 0, warmFrames = 0, gute = 0;
   var NODEGRADE = /voll/.test(location.search);
+  var VIEW_VOLL = VIEW;
+
+  function setzeStufe(n) {
+    n = Math.max(0, Math.min(2, n));
+    if (n === STUFE) return;
+    STUFE = n;
+    SPARSAM = n >= 2;
+    VIEW = n === 0 ? VIEW_VOLL : n === 1 ? Math.round(VIEW_VOLL * 0.82) : 120;
+    renderer.shadowMap.enabled = (n === 0) && !IOS_WEAK;
+    renderer.setPixelRatio(n === 0 ? DPR : n === 1 ? Math.min(DPR, 1.5) : 1);
+    scene.fog.near = n === 0 ? 34 : 24;
+    scene.fog.far = VIEW * (n === 0 ? 1.9 : 1.7);
+    camera.far = VIEW + 150;
+    camera.updateProjectionMatrix();
+  }
+
   function checkPerf(now) {
-    if (SPARSAM || NODEGRADE) return;
+    if (NODEGRADE) return;
+    // Anlauf nicht mitzaehlen: die ersten Bilder tragen den Aufbau
+    if (warmFrames < 90) { warmFrames++; perfStart = now; perfFrames = 0; return; }
     if (!perfStart) { perfStart = now; return; }
     perfFrames++;
-    if (now - perfStart < 2200) return;
+    if (now - perfStart < 2000) return;
     var fps = perfFrames / ((now - perfStart) / 1000);
-    if (fps < 26) {
-      SPARSAM = true;
-      VIEW = 120;
-      renderer.shadowMap.enabled = false;
-      renderer.setPixelRatio(1);
-      scene.fog.far = VIEW * 1.7;
-      scene.fog.near = 22;
-      camera.far = VIEW + 80;
-      camera.updateProjectionMatrix();
-    }
+    if (fps < 26) { setzeStufe(STUFE + 1); gute = 0; }
+    else if (fps > 45) { if (++gute >= 3) { setzeStufe(STUFE - 1); gute = 0; } }
+    else gute = 0;
     perfStart = now; perfFrames = 0;
   }
 
