@@ -50,8 +50,7 @@ Ausreißer-Physik und ist entfernt.
 
 1. **Konzeptdokument** (Rev 34) ist weiterhin veraltet und beschreibt einen
    Stand von vor diesen Änderungen.
-2. **Reste beim Instancing**: Laternen, Bänke, Pistenstangen und Hütten laufen
-   noch als Gruppen, zusammen etwa 100 Zeichenaufrufe.
+2. **Reste beim Instancing**: Pistenstangen und Hütten laufen noch als Gruppen.
 3. **Grafik-Inhalt**, unangetastet: bessere Baum- und Felsmodelle, Wetter und
    Tageszeit über die Strecke, lebendigere Stadt (fahrende Straßenbahnen,
    Schaufenster, Kirchtürme), Anton selbst (flatternder Schal, Schneefahne,
@@ -77,8 +76,9 @@ verlängert den Gleitflug. Am Rechner Pfeil hoch/runter.
 Eis gleitet, Schotter bremst mittel, Wiese bremst hart. Lenken geht frei über
 die ganze Breite.
 
-**Blitze** liegen auf der Strecke (4,5 % der Objekte) und geben 130 Bilder lang
-Vollgas mit 35 % Übertempo, in der Luft wie am Boden, mit Sog am Bildrand.
+**Booster** liegen flach als Leuchtfeld auf der Piste (4,5 % der Objekte) und
+geben beim Überfahren 130 Bilder lang Vollgas mit 35 % Übertempo, in der Luft
+wie am Boden, mit Sog am Bildrand.
 
 **Schanzen** wandeln Fahrt in Höhe: wer schnell ankommt, fliegt höher, und
 verliert dabei 5,5 bzw. 10 % Tempo. Sie erzeugen *kein* Tempo mehr.
@@ -161,16 +161,18 @@ Three.js r128 als UMD, globales `THREE`. WebGLRenderer, Hemisphere- plus
 Directional-Light, PCFSoftShadowMap, sRGB, Nebel, Gelände als Buffergeometrie
 mit Vertexfarben, die der Kamera folgt.
 
-**Instancing.** Zwölf Einzel-Mesh-Pools über `poolInst()` und vier Gruppen
-(drei Baumarten, Gebäude) über `poolInstGroup()`. Die `take()`-Schnittstelle ist
-identisch geblieben, deshalb musste keine Aufrufstelle angefasst werden.
+**Instancing.** Zwölf Einzel-Mesh-Pools über `poolInst()` und sieben Gruppen
+(drei Baumarten, Gebäude, Laternen, Bänke, Booster) über `poolInstGroup()`. Die
+`take()`-Schnittstelle ist identisch geblieben, deshalb musste keine
+Aufrufstelle angefasst werden. Teile einer Gruppe dürfen eigene Lage, Größe und
+Drehung haben, und `house()` setzt sie je Haus einzeln.
 
 | Zone | Zeichenaufrufe vorher | nachher |
 |---|---|---|
-| Bergpark | 1154 | 134 |
-| Allee | 733 | 195 |
-| Innenstadt | 734 | 222 |
-| Karlsaue | 624 | 182 |
+| Bergpark | 1154 | 121 |
+| Allee | 733 | 123 |
+| Innenstadt | 734 | 119 |
+| Karlsaue | 624 | 132 |
 
 **Bergketten** am Horizont: drei gezackte Bänder auf der Himmelskuppel, die mit
 der Kamera mitlaufen und nie näher kommen. Drei Meshes für die ganze Tiefe.

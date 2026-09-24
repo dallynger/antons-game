@@ -1844,7 +1844,7 @@
         t.scale.set(pt.sx === undefined ? 1 : pt.sx,
                     pt.sy === undefined ? 1 : pt.sy,
                     pt.sz === undefined ? 1 : pt.sz);
-        t.rotation.set(0, 0, 0);
+        t.rotation.set(pt.rx || 0, pt.ry || 0, pt.rz || 0);
         if (pt.tint) t.material.color.setHex(pt.col);
       }
     };
@@ -2041,15 +2041,22 @@
     });
 
     // Blitz zum Einsammeln: Zickzack aus zwei schraegen Balken
-    pool("blitz", 24, function () {
-      var g = new TH.Group();
-      var m1 = new TH.Mesh(new TH.BoxGeometry(0.28, 1.15, 0.28), mat(0xffd21e, false));
-      m1.position.set(0.18, 0.52, 0); m1.rotation.z = 0.5;
-      var m2 = new TH.Mesh(new TH.BoxGeometry(0.28, 1.15, 0.28), mat(0xffb01e, false));
-      m2.position.set(-0.18, -0.35, 0); m2.rotation.z = 0.5;
-      g.add(m1); g.add(m2);
-      return g;
-    });
+    // Booster liegen flach auf der Piste statt darueber zu schweben: ein
+    // Leuchtfeld mit dem Blitz darauf, ueber das man faehrt. Die Teile sind
+    // dafuer um -90 Grad gekippt, der Blitz selbst bleibt ein Zickzack.
+    var FLACH = -Math.PI / 2;
+    poolInstGroup("blitz", 24, [
+      { geo: new TH.CircleGeometry(2.3, 20),
+        mat: new TH.MeshBasicMaterial({ color: 0xff8a2b, transparent: true, opacity: 0.45, depthWrite: false }),
+        rx: FLACH, py: 0.02 },
+      { geo: new TH.CircleGeometry(1.5, 18),
+        mat: new TH.MeshBasicMaterial({ color: 0xffd21e, transparent: true, opacity: 0.6, depthWrite: false }),
+        rx: FLACH, py: 0.04 },
+      { geo: new TH.BoxGeometry(0.34, 1.5, 0.12), mat: mat(0xfff3b0, false),
+        rx: FLACH, rz: 0.5, px: 0.24, pz: -0.68, py: 0.09 },
+      { geo: new TH.BoxGeometry(0.34, 1.5, 0.12), mat: mat(0xffc21e, false),
+        rx: FLACH, rz: 0.5, px: -0.24, pz: 0.46, py: 0.09 }
+    ]);
 
     poolInst("drift", 150, new TH.SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2),
              mat(0xdceaf6, false), { receive: true });
@@ -2089,16 +2096,15 @@
     ]);
 
     // Laternen entlang der Straßen
-    pool("lamp", 70, function () {
-      var g = new TH.Group();
-      var p2 = new TH.Mesh(new TH.CylinderGeometry(0.08, 0.1, 4.2, 5), mat(0x3d4a5a));
-      p2.position.y = 2.1; g.add(p2);
-      var h = new TH.Mesh(new TH.BoxGeometry(0.9, 0.16, 0.24), mat(0x3d4a5a));
-      h.position.set(0, 4.15, 0); g.add(h);
-      var l = new TH.Mesh(new TH.BoxGeometry(0.4, 0.14, 0.3), new TH.MeshBasicMaterial({ color: 0xffe9b0 }));
-      l.position.set(0.35, 4.02, 0); g.add(l);
-      return g;
-    });
+    // Laternen instanziert: drei Teile, feste Lage zueinander, die
+    // Aufrufstellen setzen nur die Position.
+    var mastMat = mat(0x3d4a5a);
+    poolInstGroup("lamp", 70, [
+      { geo: new TH.CylinderGeometry(0.08, 0.1, 4.2, 5), mat: mastMat, py: 2.1 },
+      { geo: new TH.BoxGeometry(0.9, 0.16, 0.24), mat: mastMat, py: 4.15 },
+      { geo: new TH.BoxGeometry(0.4, 0.14, 0.3),
+        mat: new TH.MeshBasicMaterial({ color: 0xffe9b0 }), px: 0.35, py: 4.02 }
+    ]);
 
     // Gleise und Straßenbahn
     poolInst("rail", 60, new TH.BoxGeometry(1, 0.1, 0.16), mat(0x5c646e), {});
@@ -2114,14 +2120,12 @@
     });
 
     // Bänke und Zäune für die Parks
-    pool("bench", 44, function () {
-      var g = new TH.Group();
-      var b = new TH.Mesh(new TH.BoxGeometry(0.5, 0.12, 1.8), mat(0x8a6339));
-      b.position.y = 0.5; g.add(b);
-      var r = new TH.Mesh(new TH.BoxGeometry(0.12, 0.6, 1.8), mat(0x8a6339));
-      r.position.set(-0.2, 0.8, 0); g.add(r);
-      return g;
-    });
+    // Baenke ebenso: Sitz und Lehne
+    var holzMat = mat(0x8a6339);
+    poolInstGroup("bench", 44, [
+      { geo: new TH.BoxGeometry(0.5, 0.12, 1.8), mat: holzMat, py: 0.5, cast: true },
+      { geo: new TH.BoxGeometry(0.12, 0.6, 1.8), mat: holzMat, px: -0.2, py: 0.8, cast: true }
+    ]);
   }
 
   function lmBox(x, y, z, w, h, d, color) {
@@ -2626,8 +2630,10 @@
       } else if (o.type === "blitz") {
         var bz = take("blitz");
         if (bz) {
-          bz.position.set(o.m, gy + 1.5 + Math.sin(S.t / 18) * 0.18, o.z);
-          bz.rotation.y = S.t * 0.055;
+          bz.position.set(o.m, gy + 0.05, o.z);
+          bz.rotation.y = S.t * 0.03;
+          var puls = 1 + Math.sin(S.t / 11) * 0.06;
+          bz.scale.set(puls, 1, puls);
         }
       } else if (o.type === "rock") {
         var k = take("rock");
