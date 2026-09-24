@@ -37,6 +37,13 @@ Einmalig, danach ist die Adresse dauerhaft erreichbar:
   Rampen bringen wieder Höhe.
 - Am Rechner: Leertaste schießt und gibt Schub, Pfeiltasten lenken.
 
+## Weiterentwickeln
+
+`HANDOFF.md` enthält den vollständigen Stand: Physikkonstanten, die drei harten
+Grenzen der Balance, Grafikaufbau, die Fallen, die schon einmal zugeschnappt
+sind, und wie geprüft wird. In eine neue Unterhaltung einfügen, dann ist der
+Kontext da.
+
 ## Technisch
 
 - Eine einzelne HTML-Datei je Fassung, keine Bauwerkzeuge, kein Server nötig.
