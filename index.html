@@ -105,7 +105,7 @@
     overflow-y: auto; gap: 14px;
   }
   .sheet h1 { font-family: var(--display); font-size: 24px; margin: 0; text-wrap: balance; }
-  .sheet h2 { font-family: var(--display); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); margin: 6px 0 0; }
+  .sheet h2 { font-family: var(--display); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); margin: 6px auto 0; }
   .result { display: flex; gap: 22px; align-items: baseline; font-variant-numeric: tabular-nums; }
   .result .big { font-family: var(--display); font-size: 40px; line-height: 1; }
   .result .sub { font-size: 13px; color: var(--ink-dim); }
@@ -119,20 +119,51 @@
   .track { height: 8px; border-radius: 99px; background: var(--panel-2); overflow: hidden; }
   .track i { display: block; height: 100%; background: var(--jersey); border-radius: 99px; }
 
-  .shop { display: grid; gap: 8px; }
+  /* Alles in einer Spalte fester Breite: sonst zieht sich jede Karte auf
+     einem breiten Bildschirm ueber die volle Fensterbreite auseinander. */
+  /* align-self statt auto-Raendern: bei gestreckten Flex-Kindern werden
+     auto-Raender quer zur Achse als 0 behandelt, die Ueberschriften
+     blieben dadurch links stehen. */
+  .sheet > * { width: 100%; max-width: 540px; align-self: center; flex-shrink: 0; }
+  .shop { display: grid; gap: 7px; }
   .up {
-    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
+    display: grid; grid-template-columns: 38px 1fr auto; align-items: center;
+    column-gap: 11px; row-gap: 0;
     background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-    padding: 11px 12px; text-align: left; color: inherit; font: inherit; cursor: pointer;
+    padding: 10px 11px; text-align: left; color: inherit; font: inherit; cursor: pointer;
+    transition: border-color .12s ease, background .12s ease;
   }
-  .up:disabled { opacity: .45; cursor: default; }
-  .up .t { display: block; font-weight: 700; font-size: 15px; }
-  .up .d { display: block; font-size: 12px; color: var(--ink-dim); margin-top: 2px; line-height: 1.35; }
-  .pips { display: flex; gap: 3px; margin-top: 6px; }
-  .pips u { width: 20px; height: 5px; border-radius: 99px; background: var(--panel-2); }
+  .up[data-can="1"] { border-color: #3d6b63; }
+  .up[data-can="1"]:active { background: var(--panel-2); }
+  .up:disabled { cursor: default; }
+  .up:disabled .tag, .up:disabled .t { opacity: .55; }
+  .up .tag {
+    grid-column: 1; grid-row: 1 / span 3;
+    width: 38px; height: 38px; border-radius: 11px; align-self: center;
+    display: grid; place-items: center;
+    font-family: var(--display); font-size: 17px; color: #10212e;
+  }
+  .up .t { grid-column: 2; grid-row: 1; display: flex; align-items: baseline; gap: 7px; font-weight: 700; font-size: 15px; }
+  .up .t em { font-style: normal; font-size: 11.5px; color: var(--ink-dim); font-weight: 400; }
+  .up .d { grid-column: 2; grid-row: 2; font-size: 12px; color: var(--ink-dim); margin-top: 1px; line-height: 1.3; }
+  .pips { grid-column: 2; grid-row: 3; display: flex; gap: 3px; margin-top: 5px; }
+  .pips u { flex: 1 1 0; max-width: 34px; height: 4px; border-radius: 99px; background: var(--panel-2); }
   .pips u.on { background: var(--jersey); }
-  .price { font-family: var(--display); font-size: 15px; color: var(--gold); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .price.max { color: var(--ink-dim); }
+  .price {
+    grid-column: 3; grid-row: 1 / span 3; align-self: center;
+    display: flex; flex-direction: column; align-items: flex-end;
+    gap: 2px; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .price b { font-family: var(--display); font-size: 15px; color: var(--gold); font-weight: 400; }
+  .price s { font-size: 10.5px; color: #7b8ea3; text-decoration: none; letter-spacing: .04em; }
+  .price.max b { color: var(--ink-dim); }
+  .price.short b { color: #7b8ea3; }
+  .purse {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--panel-2); border-radius: 12px; padding: 9px 13px;
+  }
+  .purse span { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); }
+  .purse b { font-family: var(--display); font-size: 21px; color: var(--gold); font-variant-numeric: tabular-nums; }
   .up:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .btn {
@@ -158,11 +189,7 @@
   }
   .sheet.menu h1 { text-align: center; font-size: 21px; margin: 0; }
   .sheet.menu h2 { margin: 2px 0 0; }
-  .menutop {
-    position: absolute; left: 16px; right: 16px;
-    top: calc(14px + env(safe-area-inset-top, 0px));
-    text-align: center; pointer-events: none;
-  }
+  .menutop { text-align: center; pointer-events: none; padding: 2px 0 6px; }
   .menutop h1 { text-shadow: 0 2px 14px rgba(8,14,24,.75); }
   .menutop span {
     display: block; margin-top: 3px; font-size: 12px; letter-spacing: .1em;
@@ -287,14 +314,14 @@
   var MAX_M = 7800;
 
   var UPGRADES = [
-    { id: "anlauf", name: "Anlauf", desc: "schneller vom Herkules weg", base: 220, effect: "Start +12 %" },
-    { id: "sprit",  name: "Treibstoff", desc: "länger selbst steuern", base: 260, effect: "Schub +25 %" },
-    { id: "schub",  name: "Schub", desc: "kräftiger beschleunigen", base: 300, effect: "Kraft +20 %" },
-    { id: "fluegel", name: "Flügel", desc: "gleiten statt fallen", base: 380, effect: "Auftrieb +120 %" },
-    { id: "kufen",  name: "Kufen", desc: "weiter rutschen", base: 320, effect: "Reibung −17 %" },
-    { id: "lenk",   name: "Lenkung", desc: "Rampen sicherer treffen", base: 340, effect: "Wechsel +22 %" },
-    { id: "kappe",  name: "Glückskappe", desc: "mehr auf der Strecke", base: 450, effect: "Münzen +18 %" },
-    { id: "reifen", name: "Reifen", desc: "größer, glatter, springt besser", base: 400, effect: "Reibung −44 %", max: 5, ring: true }
+    { id: "anlauf",  name: "Anlauf",      desc: "schneller vom Herkules weg",     base: 220, effect: "Abschuss +12 %",  tag: "A", col: "#ff8a45" },
+    { id: "sprit",   name: "Treibstoff",  desc: "länger selbst Schub geben",      base: 260, effect: "Tank +25 %",      tag: "T", col: "#ff6a2b" },
+    { id: "schub",   name: "Schub",       desc: "kräftiger beschleunigen",        base: 300, effect: "Kraft +20 %",     tag: "S", col: "#ffb01e" },
+    { id: "fluegel", name: "Flügel",      desc: "besser neigen, länger gleiten",  base: 380, effect: "Ruder +15 %",     tag: "F", col: "#6fd3ea" },
+    { id: "kufen",   name: "Kufen",       desc: "weiter rutschen",                base: 320, effect: "Reibung −17 %",   tag: "K", col: "#9ad3a6" },
+    { id: "lenk",    name: "Lenkung",     desc: "Schanzen sicherer treffen",      base: 340, effect: "Wechsel +22 %",   tag: "L", col: "#a8b6ff" },
+    { id: "kappe",   name: "Glückskappe", desc: "mehr Münzen auf der Strecke",    base: 450, effect: "Münzen +18 %",    tag: "G", col: "#ffce4d" },
+    { id: "reifen",  name: "Reifen",      desc: "größer, glatter, springt besser", base: 400, effect: "Reibung −44 %", max: 5, ring: true, tag: "R", col: "#c79bff" }
   ];
   var MAXLVL = 5;
   function maxOf(u) { return u.max === undefined ? MAXLVL : u.max; }
@@ -944,16 +971,29 @@
   // Werkstatt: steht nach jedem Lauf UND im Startmenue, damit die Ausbauten
   // nicht nur direkt nach dem Landen erreichbar sind.
   function shopHtml() {
-    var h = ['<h2>Werkstatt</h2><div class="shop">'];
+    var h = ['<div class="purse"><span>Münzen</span><b>' + save.coins + '</b></div>',
+             '<h2>Werkstatt</h2><div class="shop">'];
     UPGRADES.forEach(function (u) {
       var lim = maxOf(u), l = lv(u.id), max = l >= lim, p = priceOf(u);
       var can = !max && save.coins >= p;
-      h.push('<button class="up" data-u="' + u.id + '"' + (can ? "" : " disabled") + '>' +
-             '<span><span class="t">' + (u.ring ? ringName() : u.name) + '</span><span class="d">' + (u.ring ? (l >= lim ? u.desc : 'nächste Stufe: ' + RINGS[l + 1].name) : u.desc + ' · ' + u.effect) + '</span>' +
+      var titel = u.ring ? ringName() : u.name;
+      var unten = u.ring
+        ? (max ? u.desc : "nächste Stufe: " + RINGS[l + 1].name)
+        : u.desc;
+      // Preis sagt bei Ebbe, wie viel noch fehlt - sonst weiss man nur, dass
+      // der Knopf grau ist, aber nicht warum
+      var preis = max
+        ? '<b>voll</b>'
+        : '<b>' + p + '</b>' + (can ? '' : '<s>noch ' + (p - save.coins) + '</s>');
+      h.push('<button class="up" data-u="' + u.id + '" data-can="' + (can ? 1 : 0) + '"' +
+             (can ? "" : " disabled") + '>' +
+             '<span class="tag" style="background:' + u.col + '">' + u.tag + '</span>' +
+             '<span class="t">' + titel + '<em>Stufe ' + l + '/' + lim + '</em></span>' +
+             '<span class="price' + (max ? " max" : can ? "" : " short") + '">' + preis + '</span>' +
+             '<span class="d">' + unten + (u.ring ? '' : ' · ' + u.effect) + '</span>' +
              '<span class="pips">' + Array.from({ length: lim }, function (_, i) {
                return '<u class="' + (i < l ? "on" : "") + '"></u>';
-             }).join("") + '</span></span>' +
-             '<span class="price' + (max ? " max" : "") + '">' + (max ? "voll" : p) + '</span></button>');
+             }).join("") + '</span></button>');
     });
     h.push('</div>');
     return h.join("");
@@ -1018,10 +1058,9 @@
 
   function showMenu() {
     var h = [];
-    h.push('<div class="menutop"><h1>Antons Weitflug</h1>' +
+    h.push('<div class="menutop" style="margin-top:auto"><h1>Antons Weitflug</h1>' +
            (save.best ? '<span>Bestweite ' + save.best + ' m</span>' : '<span>vom Herkules bis zur Fulda</span>') +
            '</div>');
-    h.push('<div class="row"><span class="coinbig">' + save.coins + '</span><span class="sub">Münzen</span></div>');
     h.push(shopHtml());
     h.push(wardrobeHtml());
     h.push('<div class="sticky"><button class="btn" id="go">Los geht\'s</button></div>');
@@ -1523,9 +1562,33 @@
     var coinM = mat(0xffce4d);
     pool("coin", 240, function () { var m = new TH.Mesh(coinG, coinM); m.rotation.z = Math.PI / 2; m.castShadow = true; return m; });
 
-    var rampG = new TH.BoxGeometry(1, 1, 1);
+    // Schanze als Keil: Einheitsgroesse 1x1x1, Anstieg in Fahrtrichtung (+x),
+    // Grundflaeche bei y = 0. Dadurch sitzt sie mit position.y = Bodenhoehe
+    // richtig auf und muss nicht mehr gedreht werden.
+    var rampG = (function () {
+      var g = new TH.BufferGeometry();
+      var A = [-0.5, 0], B = [0.5, 0], C = [0.5, 1], zf = 0.5, zb = -0.5;
+      function tri(p, q, r) { return p.concat(q, r); }
+      var v = []
+        .concat(tri([A[0],A[1],zf],[B[0],B[1],zf],[C[0],C[1],zf]))   // Flanke vorn
+        .concat(tri([B[0],B[1],zb],[A[0],A[1],zb],[C[0],C[1],zb]))   // Flanke hinten
+        .concat(tri([A[0],A[1],zb],[B[0],B[1],zb],[B[0],B[1],zf]))   // Boden
+        .concat(tri([A[0],A[1],zb],[B[0],B[1],zf],[A[0],A[1],zf]))
+        .concat(tri([A[0],A[1],zf],[C[0],C[1],zf],[C[0],C[1],zb]))   // Rampenflaeche
+        .concat(tri([A[0],A[1],zf],[C[0],C[1],zb],[A[0],A[1],zb]))
+        .concat(tri([B[0],B[1],zf],[B[0],B[1],zb],[C[0],C[1],zb]))   // Abrisskante hinten
+        .concat(tri([B[0],B[1],zf],[C[0],C[1],zb],[C[0],C[1],zf]));
+      g.setAttribute("position", new TH.Float32BufferAttribute(v, 3));
+      g.computeVertexNormals();
+      return g;
+    })();
     pool("ramp", 22, function () { var m = new TH.Mesh(rampG, mat(0x7fb2d8)); m.castShadow = true; return m; });
     pool("bigramp", 4, function () { var m = new TH.Mesh(rampG, mat(0xff6a2b)); m.castShadow = true; return m; });
+    // Anlaufmarkierung neben jeder Schanze, damit man sie frueher sieht
+    pool("rampmark", 52, function () {
+      var m = new TH.Mesh(new TH.BoxGeometry(1, 1, 1), mat(0xff8a45, false));
+      return m;
+    });
 
     var rockG = new TH.DodecahedronGeometry(0.95, 0);
     pool("rock", 26, function () { var m = new TH.Mesh(rockG, mat(0x7d8fa1)); m.castShadow = true; return m; });
@@ -1988,17 +2051,71 @@
     renderer.render(scene, camera);
   }
 
+  // Das Bauwerk steht genau einmal an einer festen Stelle. Es haengt deshalb
+  // nicht am Pool, sondern wird einmal gebaut und nur ein- und ausgeblendet -
+  // so darf es beliebig viele Teile haben, ohne Pools leerzuziehen.
+  var herkules = null;
+  function buildHerkules() {
+    var g = new TH.Group();
+    var stein = mat(0xb9c5d3), steinD = mat(0xa2b0c0), steinH = mat(0xc9d4e0);
+    function add(geo, m, x, y, z, rx, ry) {
+      var o = new TH.Mesh(geo, m);
+      o.position.set(x, y, z);
+      if (rx) o.rotation.x = rx;
+      if (ry) o.rotation.y = ry;
+      o.castShadow = true; o.receiveShadow = true;
+      g.add(o); return o;
+    }
+    var OCT = Math.PI / 8;   // Achteck flaechig zur Kamera drehen
+
+    // Unterbau in zwei Absaetzen
+    add(new TH.CylinderGeometry(17, 18, 2.4, 8), steinD, 0, 1.2, 0, 0, OCT);
+    add(new TH.CylinderGeometry(15, 16, 2.0, 8), stein,  0, 3.4, 0, 0, OCT);
+
+    // Oktogon mit umlaufenden Arkaden
+    add(new TH.CylinderGeometry(12.5, 13, 12, 8), stein, 0, 10.4, 0, 0, OCT);
+    var saeule = new TH.CylinderGeometry(0.62, 0.62, 8.4, 8);
+    var bogen = new TH.BoxGeometry(1.5, 1.2, 0.9);
+    for (var a = 0; a < 8; a++) {
+      var w = OCT + a * Math.PI / 4, r = 12.9;
+      var cx = Math.sin(w) * r, cz = Math.cos(w) * r;
+      // je Seite zwei Saeulen und ein Sturz darueber
+      for (var sd = -1; sd <= 1; sd += 2) {
+        var ox = Math.cos(w) * sd * 3.1, oz = -Math.sin(w) * sd * 3.1;
+        add(saeule, steinH, cx + ox, 8.6, cz + oz);
+      }
+      add(bogen, steinD, cx, 13.2, cz, 0, w);
+    }
+    // Gesims
+    add(new TH.CylinderGeometry(14, 13.4, 1.4, 8), steinH, 0, 17.1, 0, 0, OCT);
+
+    // Stufenpyramide
+    for (var i = 0; i < 9; i++) {
+      var rr = 12.2 - i * 1.22;
+      add(new TH.CylinderGeometry(rr - 0.5, rr, 1.5, 8), i % 2 ? stein : steinH,
+          0, 18.5 + i * 1.5, 0, 0, OCT);
+    }
+
+    // Sockel und Statue
+    add(new TH.CylinderGeometry(2.6, 3.0, 3.2, 8), steinD, 0, 33.6, 0, 0, OCT);
+    var figur = mat(0x8d9bad);
+    add(new TH.CylinderGeometry(0.85, 1.05, 4.2, 7), figur, 0, 37.3, 0);   // Rumpf
+    add(new TH.SphereGeometry(0.8, 9, 7), figur, 0, 39.9, 0);              // Kopf
+    add(new TH.CylinderGeometry(0.34, 0.46, 4.6, 6), figur, 1.7, 38.4, 0.2, 0, 0)
+      .rotation.z = -0.32;                                                  // Keule
+    add(new TH.CylinderGeometry(0.3, 0.3, 2.6, 6), figur, -1.35, 37.6, 0.1, 0, 0)
+      .rotation.z = 0.55;                                                   // Arm
+    return g;
+  }
+
   function placeProps(mNow) {
     // Herkules am Start
-    if (camPos.x < 160) {
-      var hx = 64, hz = -13, hg = groundM(hx) - 2;
-      lmBox(hx, hg, hz, 26, 3.5, 26, 0xa9b6c6);
-      lmBox(hx, hg + 3.5, hz, 17, 13, 17, 0xb9c5d3);
-      lmBox(hx, hg + 16.5, hz, 12, 10, 12, 0xaab7c6);
-      lmBox(hx, hg + 26.5, hz, 6.5, 5, 6.5, 0x9daabb);
-      lmBox(hx, hg + 31.5, hz, 2.1, 5, 2.1, 0x8d9bad);
-      lmBox(hx + 1.4, hg + 33.5, hz, 0.7, 3, 0.7, 0x8d9bad);
+    if (!herkules) {
+      herkules = buildHerkules();
+      herkules.position.set(64, groundM(64) - 2, -13);
+      scene.add(herkules);
     }
+    herkules.visible = camPos.x < 200;
 
     // Landschaft auf festem Weltraster: die Spalten liegen immer an derselben Stelle,
     // sonst wandern die Bäume bei jedem Bild in eine andere Zelle und flackern
@@ -2098,12 +2215,16 @@
       } else if (o.type === "ramp") {
         var m = take(o.big ? "bigramp" : "ramp");
         if (!m) return;
-        var w = o.big ? 4.2 : 2.8, h = o.big ? 1.7 : 1.0, dp = o.big ? 5.5 : 3.8;
-        // Die Schanze steigt in Fahrtrichtung an, die Kante liegt hinten am Boden
-        var ang = 0.42;
-        m.scale.set(dp, h * 0.55, w);
-        m.rotation.z = ang;
-        m.position.set(o.m, gy + (dp / 2) * Math.sin(ang) + h * 0.275 * Math.cos(ang), o.z);
+        var w = o.big ? 5.0 : 3.4, h = o.big ? 2.0 : 1.2, dp = o.big ? 7.0 : 4.8;
+        m.scale.set(dp, h, w);
+        m.position.set(o.m, gy + 0.02, o.z);
+        // Zwei Leitbaken davor: man erkennt die Schanze schon aus der Ferne
+        for (var mk = 0; mk < 2; mk++) {
+          var bk = take("rampmark");
+          if (!bk) break;
+          bk.scale.set(0.3, 1.1, 0.3);
+          bk.position.set(o.m - dp / 2 - 1.6, gy + 0.55, o.z + (mk ? 1 : -1) * (w / 2 + 0.7));
+        }
       } else if (o.type === "blitz") {
         var bz = take("blitz");
         if (bz) {
@@ -2240,8 +2361,8 @@
       for (var i = 0; i < kn; i++) {
         var kx = x + i * kw, kg = groundM(kx);
         var kz = pathCenter(2, kx);
-        lmBox(kx, kg + 0.04, kz, kw * 0.96, 0.1, 30, (i % 2) ? 0xdbe8f4 : 0xc9dcee);
-        lmBox(kx, kg + 0.1, kz, kw * 0.62, 0.1, 23, 0x74aedb);   // Wasserband
+        lmBox(kx, kg + 0.04, kz, kw * 0.96, 0.1, 17, (i % 2) ? 0xe6eef6 : 0xdae5f0);
+        lmBox(kx, kg + 0.1, kz, kw * 0.6, 0.1, 10.5, 0x93c0e2);  // Wasserband
       }
     } else if (n.indexOf("Fontäne") >= 0) {
       lmBox(x, gy, -off, 7, 0.7, 7, 0x6098c4);
