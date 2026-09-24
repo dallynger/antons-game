@@ -215,6 +215,15 @@
   .wearbtn[aria-pressed="true"] { border-color: var(--jersey); background: #1d3a4d; }
   .wearbtn[aria-pressed="true"] u { color: var(--jersey); }
   .wearbtn:disabled { opacity: .4; cursor: default; }
+  /* Vignette: bindet das Bild zusammen und nimmt den Raendern die Haerte.
+     Liegt als CSS ueber dem Canvas, kostet also keine Rechenzeit in der Szene. */
+  .grade {
+    position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    background:
+      radial-gradient(ellipse 78% 68% at 50% 46%, rgba(255,238,210,.10) 0%, transparent 55%),
+      radial-gradient(ellipse 96% 86% at 50% 44%, transparent 58%, rgba(18,38,62,.30) 100%);
+    mix-blend-mode: soft-light;
+  }
   .rush {
     position: absolute; inset: 0; pointer-events: none; opacity: 0;
     background: radial-gradient(ellipse 70% 58% at 50% 52%, transparent 62%, rgba(90,140,190,.38) 100%);
@@ -283,6 +292,7 @@
     <span id="aimText">Zwille ziehen</span>
     <div class="bar"><i id="aimFill"></i><u id="aimDir"></u></div>
   </div>
+  <div class="grade"></div>
   <div class="rush" id="rush"></div>
   <div class="fuelbar" id="fuelBar" hidden><i id="fuelFill"></i></div>
   <button class="restart" id="restart" hidden>Neu starten</button>
@@ -1096,7 +1106,7 @@
   function initScene() {
     scene = new TH.Scene();
     scene.background = new TH.Color(SKY);
-    scene.fog = new TH.Fog(0x9cbad9, 26, VIEW * 1.7);
+    scene.fog = new TH.Fog(0xaecbe4, 34, VIEW * 1.9);
 
     camera = new TH.PerspectiveCamera(58, 1, 0.5, VIEW + 150);
 
@@ -1113,8 +1123,8 @@
     renderer.shadowMap.type = isIOS ? TH.BasicShadowMap : TH.PCFSoftShadowMap;
     var sc2 = sun && sun.shadow;
 
-    scene.add(new TH.HemisphereLight(0x9ec3ea, 0x36506b, 0.40));
-    sun = new TH.DirectionalLight(0xfff4dc, 1.30);
+    scene.add(new TH.HemisphereLight(0xb2d4f4, 0x3b5a80, 0.46));
+    sun = new TH.DirectionalLight(0xfff0d2, 1.44);
     sun.castShadow = true;
     sun.shadow.mapSize.set(isIOS ? 1024 : 2048, isIOS ? 1024 : 2048);
     var c = sun.shadow.camera;
@@ -1145,6 +1155,7 @@
   }
 
   var skyDome, sunDisc, sunGlow;
+  var ridges = [];
   function buildSky() {
     var g = new TH.SphereGeometry(VIEW + 60, 18, 12);
     var pos = g.attributes.position, colArr = [];
@@ -1158,6 +1169,42 @@
     skyDome = new TH.Mesh(g, new TH.MeshBasicMaterial({ vertexColors: true, side: TH.BackSide, fog: false, depthWrite: false }));
     skyDome.renderOrder = -1;
     scene.add(skyDome);
+
+    // Bergketten: gezackte Baender auf der Kuppel, in drei Ebenen gestaffelt.
+    // Sie laufen mit der Kamera mit und kommen nie naeher - dadurch lesen sie
+    // sich als echte Ferne, und es bleibt bei drei zusaetzlichen Meshes.
+    [[0.940, 0.235, 0x7f97b5, 61], [0.962, 0.165, 0x9db3cc, 47], [0.982, 0.112, 0xb7c7da, 35]]
+      .forEach(function (lay, li) {
+        var rad = (VIEW + 58) * lay[0], seg = lay[3];
+        var pos = [], col = [], base = new TH.Color(lay[2]);
+        function hh(i) {
+          var a = i * 7.13 + li * 19.7;
+          return (Math.sin(a) * 0.5 + Math.sin(a * 2.3) * 0.3 + Math.sin(a * 5.1) * 0.2) * 0.5 + 0.5;
+        }
+        for (var i = 0; i < seg; i++) {
+          var a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
+          var x0 = Math.sin(a0) * rad, z0 = Math.cos(a0) * rad;
+          var x1 = Math.sin(a1) * rad, z1 = Math.cos(a1) * rad;
+          var y0 = rad * lay[1] * (0.35 + hh(i)), y1 = rad * lay[1] * (0.35 + hh(i + 1));
+          var yb = -rad * 0.10;
+          pos.push(x0, yb, z0, x1, yb, z1, x1, y1, z1);
+          pos.push(x0, yb, z0, x1, y1, z1, x0, y0, z0);
+          for (var v = 0; v < 6; v++) {
+            var oben = (v === 2 || v === 4 || v === 5);
+            var c = base.clone().multiplyScalar(oben ? 1.16 : 0.92);
+            col.push(c.r, c.g, c.b);
+          }
+        }
+        var mg = new TH.BufferGeometry();
+        mg.setAttribute("position", new TH.Float32BufferAttribute(pos, 3));
+        mg.setAttribute("color", new TH.Float32BufferAttribute(col, 3));
+        var mm = new TH.Mesh(mg, new TH.MeshBasicMaterial({
+          vertexColors: true, side: TH.BackSide, fog: false, depthWrite: false
+        }));
+        mm.renderOrder = -1 + (li + 1) * 0.01;
+        ridges.push(mm);
+        scene.add(mm);
+      });
 
     // Sonne als Scheibe mit weichem Schein
     sunGlow = new TH.Mesh(new TH.CircleGeometry(34, 24),
@@ -1215,8 +1262,9 @@
     tGeo.setAttribute("color", new TH.BufferAttribute(tCol, 3));
     tGeo.setAttribute("uv", new TH.BufferAttribute(tUv, 2));
     tGeo.setIndex(idx);
-    terrain = new TH.Mesh(tGeo, new TH.MeshLambertMaterial({
-      vertexColors: true, flatShading: true, map: grainTexture()
+    terrain = new TH.Mesh(tGeo, new TH.MeshPhongMaterial({
+      vertexColors: true, flatShading: true, map: grainTexture(),
+      shininess: 12, specular: 0x30455c
     }));
     terrain.receiveShadow = true;
     scene.add(terrain);
@@ -1560,7 +1608,9 @@
   }
   if (/[?&]debug/.test(location.search)) {
     window.__dbg = { pools: pools, miss: poolMiss, info: function () { return renderer.info; },
-                     state: function () { return S; }, solids: function () { return solidsN; } };
+                     state: function () { return S; }, solids: function () { return solidsN; },
+                     renderer: function () { return renderer; }, sun: function () { return sun; },
+                     scene: function () { return scene; }, terrain: function () { return terrain; } };
   }
   function hideRest() {
     for (var k in pools) {
@@ -1955,7 +2005,7 @@
     );
     camera.lookAt(camLook.x, camLook.y, camLook.z);
 
-    sun.position.set(camPos.x - 46, camPos.y + 30, camPos.z + 54);
+    sun.position.set(camPos.x - 58, camPos.y + 19, camPos.z + 66);
     sun.target.position.set(mNow, yNow, zNow);
     sun.target.updateMatrixWorld();
 
@@ -2020,6 +2070,7 @@
       placeProps(0);
       hideRest();
       if (skyDome) skyDome.position.set(0, 0, 0);
+      for (var ri0 = 0; ri0 < ridges.length; ri0++) ridges[ri0].position.set(0, groundM(0) * 0.25, 0);
       renderer.render(scene, camera);
       return;
     }
@@ -2074,6 +2125,7 @@
     stepDust();
     snow.position.set(camPos.x + 20, camPos.y - 10, camPos.z);
     if (skyDome) skyDome.position.set(camPos.x, 0, camPos.z);
+    for (var ri = 0; ri < ridges.length; ri++) ridges[ri].position.set(camPos.x, groundM(camPos.x) * 0.25, camPos.z);
     if (sunDisc) {
       var sx = camPos.x + 210, sy = camPos.y + 92, sz = camPos.z - 120;
       sunDisc.position.set(sx, sy, sz);
