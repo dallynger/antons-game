@@ -158,6 +158,18 @@
   .price s { font-size: 10.5px; color: #7b8ea3; text-decoration: none; letter-spacing: .04em; }
   .price.max b { color: var(--ink-dim); }
   .price.short b { color: #7b8ea3; }
+  .tabs {
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 4px;
+    position: sticky; top: 0; z-index: 3;
+  }
+  .tabs button {
+    border: 0; background: none; color: var(--ink-dim);
+    font: inherit; font-size: 13.5px; font-weight: 700;
+    padding: 9px 4px; border-radius: 9px; cursor: pointer;
+  }
+  .tabs button[aria-pressed="true"] { background: var(--panel-2); color: var(--ink); }
   .who { display: flex; flex-wrap: wrap; gap: 6px; }
   .who button {
     position: relative; border: 1px solid var(--line); background: var(--panel);
@@ -1021,10 +1033,10 @@
       h.push('<div class="goal"><div class="row"><span class="name">Ganz Kassel geschafft</span></div></div>');
     }
 
-    h.push(shopHtml());
+    h.push(tabsHtml([["werkstatt", "Werkstatt"], ["kleider", "Anziehen"]]));
+    h.push(tabInhalt());
 
     h.push('<div class="hint">Zwille nach hinten ziehen und loslassen. In der Luft tippen und halten gibt Schub, solange der Balken unten reicht. Dabei den Finger nach oben oder unten ziehen: unten geht die Nase runter, das gibt Tempo, oben zieht er die Nase hoch und gleitet weiter. Blitze auf der Strecke geben ein paar Sekunden Vollgas. Beim Rutschen links oder rechts antippen, um die Spur zu wechseln \u2013 Rampen bringen dich wieder hoch.</div>');
-    h.push(wardrobeHtml());
     h.push('<div class="sticky"><button class="btn" id="again">Nochmal</button></div>');
 
     el.sheet.className = "sheet";
@@ -1034,8 +1046,10 @@
     el.sheet.scrollTop = 0;
     el.coins.textContent = save.coins;
 
-    wireShop(function () { showSheet(distCoins, total); });
-    wireWardrobe(function () { showSheet(distCoins, total); });
+    var neu = function () { showSheet(distCoins, total); };
+    wireTabs(neu);
+    wireShop(neu);
+    wireWardrobe(neu);
     document.getElementById("again").addEventListener("click", startRun);
   }
 
@@ -1048,8 +1062,33 @@
     });
   }
 
+  // Startmenue und Endblatt waren beide sehr lang geworden. Die Bereiche
+  // liegen jetzt auf Reitern; der gewaehlte gilt fuer beide und ueberlebt den
+  // Lauf, damit man nach dem Landen dort weitermacht, wo man war.
+  var reiter = "werkstatt";
+  function tabsHtml(liste) {
+    if (liste.map(function (t) { return t[0]; }).indexOf(reiter) < 0) reiter = liste[0][0];
+    return '<div class="tabs">' + liste.map(function (t) {
+      return '<button data-tab="' + t[0] + '" aria-pressed="' + (t[0] === reiter) + '">' + t[1] + '</button>';
+    }).join("") + '</div>';
+  }
+  function wireTabs(redraw) {
+    el.sheet.querySelectorAll("[data-tab]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.dataset.tab === reiter) return;
+        reiter = b.dataset.tab;
+        redraw();
+      });
+    });
+  }
+  function tabInhalt() {
+    if (reiter === "wer") return whoHtml();
+    if (reiter === "kleider") return wardrobeHtml();
+    return shopHtml();
+  }
+
   function whoHtml() {
-    var h = ['<h2>Wer spielt?</h2><div class="who">'];
+    var h = ['<div class="hint">Jeder Name hat einen eigenen Spielstand.</div><div class="who">'];
     namen.liste.forEach(function (n) {
       var an = n === namen.aktiv;
       if (n === "Anton") {
@@ -1102,8 +1141,9 @@
   // Werkstatt: steht nach jedem Lauf UND im Startmenue, damit die Ausbauten
   // nicht nur direkt nach dem Landen erreichbar sind.
   function shopHtml() {
+    // Ueberschrift traegt der Reiter, hier nur noch der Geldbeutel
     var h = ['<div class="purse"><span>Münzen</span><b>' + save.coins + '</b></div>',
-             '<h2>Werkstatt</h2><div class="shop">'];
+             '<div class="shop">'];
     UPGRADES.forEach(function (u) {
       var lim = maxOf(u), l = lv(u.id), max = l >= lim, p = priceOf(u);
       var can = !max && save.coins >= p;
@@ -1193,9 +1233,8 @@
            '<span>' + esc(namen.aktiv) +
            (save.best ? ' · Bestweite ' + save.best + ' m' : ' · vom Herkules bis zur Fulda') + '</span>' +
            '</div>');
-    h.push(whoHtml());
-    h.push(shopHtml());
-    h.push(wardrobeHtml());
+    h.push(tabsHtml([["werkstatt", "Werkstatt"], ["kleider", "Anziehen"], ["wer", "Wer spielt"]]));
+    h.push(tabInhalt());
     h.push('<div class="sticky"><button class="btn" id="go">Los geht\'s</button></div>');
     el.sheet.className = "sheet menu";
     el.restart.hidden = true;
@@ -1203,6 +1242,7 @@
     el.sheet.innerHTML = h.join("");
     el.sheet.hidden = false;
     el.sheet.scrollTop = 0;
+    wireTabs(showMenu);
     wireWho();
     wireShop(showMenu);
     wireWardrobe(showMenu);
