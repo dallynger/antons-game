@@ -1583,6 +1583,123 @@
     pools[name] = { arr: arr, used: 0 };
   }
   var poolMiss = {};
+  // Instanzierter Pool: eine Zeichenanweisung fuer beliebig viele Kopien
+  // derselben Form. Nach aussen verhaelt er sich wie der alte Pool - take()
+  // liefert ein Objekt mit position/rotation/scale, das die Aufrufstellen
+  // unveraendert weiterbenutzen. Die Matrizen werden erst am Bildende in
+  // einem Rutsch hochgeladen.
+  var instPools = [];
+  function poolInst(name, n, geo, material, opts) {
+    opts = opts || {};
+    var im = new TH.InstancedMesh(geo, material, n);
+    im.instanceMatrix.setUsage(TH.DynamicDrawUsage);
+    im.castShadow = !!opts.cast;
+    im.receiveShadow = !!opts.receive;
+    // Die Huelle einer InstancedMesh wird nur aus der Geometrie berechnet,
+    // nicht aus den Instanzpositionen. Ohne das hier verschwindet alles,
+    // sobald der Ursprung ausserhalb des Sichtfelds liegt.
+    im.frustumCulled = false;
+    // Farbpuffer ausdruecklich anlegen: setColorAt() erzeugt ihn sonst in der
+    // Groesse von count - und count ist beim Bauen 0. Der Puffer waere leer und
+    // alle Instanzen wuerden schwarz.
+    if (opts.color) im.instanceColor = new TH.InstancedBufferAttribute(new Float32Array(n * 3).fill(1), 3);
+    if (opts.renderOrder) im.renderOrder = opts.renderOrder;
+    im.count = 0;
+    scene.add(im);
+    var arr = [];
+    for (var i = 0; i < n; i++) {
+      var o = new TH.Object3D();
+      o.matrixAutoUpdate = false;
+      if (opts.setup) opts.setup(o);
+      if (opts.color) o.material = { color: new TH.Color(0xffffff) };
+      arr.push(o);
+    }
+    pools[name] = { arr: arr, used: 0, im: im, farbe: !!opts.color };
+    instPools.push(pools[name]);
+  }
+  // Instanzierte Gruppe: ein Baum besteht aus mehreren Teilen. Statt je Baum
+  // vier bis sechs Zeichenanweisungen gibt es je TEIL eine, ueber alle Baeume
+  // hinweg. Die Aufrufstellen merken nichts davon - sie bekommen weiterhin ein
+  // Objekt mit position/rotation/scale und userData.parts zum Einfaerben.
+  var instGroups = [];
+  function poolInstGroup(name, n, parts) {
+    var ims = [], locals = [], tintIdx = [];
+    parts.forEach(function (pt, k) {
+      var m = pt.tint ? pt.mat : pt.mat;
+      var im = new TH.InstancedMesh(pt.geo, m, n);
+      im.instanceMatrix.setUsage(TH.DynamicDrawUsage);
+      im.castShadow = !!pt.cast;
+      im.frustumCulled = false;
+      if (pt.tint) im.instanceColor = new TH.InstancedBufferAttribute(new Float32Array(n * 3).fill(1), 3);
+      im.count = 0;
+      scene.add(im);
+      ims.push(im);
+      var lm = new TH.Matrix4();
+      lm.compose(new TH.Vector3(pt.px || 0, pt.py || 0, pt.pz || 0),
+                 new TH.Quaternion(),
+                 new TH.Vector3(pt.sx === undefined ? 1 : pt.sx,
+                                pt.sy === undefined ? 1 : pt.sy,
+                                pt.sz === undefined ? 1 : pt.sz));
+      locals.push(lm);
+      if (pt.tint) tintIdx.push(k);
+    });
+    var arr = [];
+    for (var i = 0; i < n; i++) {
+      var o = new TH.Object3D();
+      o.matrixAutoUpdate = false;
+      o.userData.parts = tintIdx.map(function (k) {
+        return { material: { color: new TH.Color(parts[k].col) } };
+      });
+      arr.push(o);
+    }
+    var p = { arr: arr, used: 0, gruppe: { ims: ims, locals: locals, tintIdx: tintIdx, parts: parts } };
+    // Nicht jede Aufrufstelle faerbt ein. Beim Herausgeben die Standardfarbe
+    // zuruecksetzen, sonst behaelt ein Baum die Farbe seines Vorgaengers.
+    p.reset = function (o2) {
+      for (var t = 0; t < tintIdx.length; t++) o2.userData.parts[t].material.color.setHex(parts[tintIdx[t]].col);
+    };
+    pools[name] = p;
+    instGroups.push(p);
+  }
+  var _tmpM = new TH.Matrix4();
+  function flushGroups() {
+    for (var gi = 0; gi < instGroups.length; gi++) {
+      var p = instGroups[gi], G = p.gruppe;
+      for (var i = 0; i < p.used; i++) {
+        var o = p.arr[i];
+        o.updateMatrix();
+        for (var k = 0; k < G.ims.length; k++) {
+          _tmpM.multiplyMatrices(o.matrix, G.locals[k]);
+          G.ims[k].setMatrixAt(i, _tmpM);
+        }
+      }
+      for (var t = 0; t < G.tintIdx.length; t++) {
+        var im = G.ims[G.tintIdx[t]];
+        for (var j = 0; j < p.used; j++) im.setColorAt(j, p.arr[j].userData.parts[t].material.color);
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      }
+      for (var k2 = 0; k2 < G.ims.length; k2++) {
+        G.ims[k2].count = p.used;
+        G.ims[k2].instanceMatrix.needsUpdate = true;
+      }
+    }
+  }
+
+  function flushInst() {
+    for (var pi = 0; pi < instPools.length; pi++) {
+      var p = instPools[pi];
+      for (var i = 0; i < p.used; i++) {
+        var o = p.arr[i];
+        o.updateMatrix();
+        p.im.setMatrixAt(i, o.matrix);
+        if (p.farbe) p.im.setColorAt(i, o.material.color);
+      }
+      p.im.count = p.used;
+      p.im.instanceMatrix.needsUpdate = true;
+      if (p.farbe && p.im.instanceColor) p.im.instanceColor.needsUpdate = true;
+    }
+  }
+
   function take(name) {
     var p = pools[name];
     // Laeuft ein Pool leer, verschwinden Objekte sprunghaft - das sieht aus
@@ -1590,6 +1707,7 @@
     if (p.used >= p.arr.length) { poolMiss[name] = (poolMiss[name] || 0) + 1; return null; }
     var m = p.arr[p.used++];
     m.visible = true;
+    if (p.reset) p.reset(m);
     return m;
   }
   function resetPools() { for (var k in pools) pools[k].used = 0; solidsN = 0; }
@@ -1615,8 +1733,11 @@
   function hideRest() {
     for (var k in pools) {
       var p = pools[k];
+      if (p.im) continue;                       // instanziert: regelt count
       for (var i = p.used; i < p.arr.length; i++) p.arr[i].visible = false;
     }
+    flushInst();
+    flushGroups();
   }
 
   // Fassade: vier Reihen Fenster, damit Häuser nicht wie Kartons aussehen
@@ -1645,7 +1766,7 @@
   function buildPools() {
     var coinG = new TH.CylinderGeometry(0.42, 0.42, 0.1, 14);
     var coinM = mat(0xffce4d);
-    pool("coin", 320, function () { var m = new TH.Mesh(coinG, coinM); m.rotation.z = Math.PI / 2; m.castShadow = true; return m; });
+    poolInst("coin", 320, coinG, coinM, { cast: true, setup: function (o) { o.rotation.z = Math.PI / 2; } });
 
     // Schanze als Keil: Einheitsgroesse 1x1x1, Anstieg in Fahrtrichtung (+x),
     // Grundflaeche bei y = 0. Dadurch sitzt sie mit position.y = Bodenhoehe
@@ -1667,65 +1788,40 @@
       g.computeVertexNormals();
       return g;
     })();
-    pool("ramp", 22, function () { var m = new TH.Mesh(rampG, mat(0x7fb2d8)); m.castShadow = true; return m; });
-    pool("bigramp", 4, function () { var m = new TH.Mesh(rampG, mat(0xff6a2b)); m.castShadow = true; return m; });
+    poolInst("ramp", 22, rampG, mat(0x7fb2d8), { cast: true });
+    poolInst("bigramp", 4, rampG, mat(0xff6a2b), { cast: true });
     // Anlaufmarkierung neben jeder Schanze, damit man sie frueher sieht
-    pool("rampmark", 52, function () {
-      var m = new TH.Mesh(new TH.BoxGeometry(1, 1, 1), mat(0xff8a45, false));
-      return m;
-    });
+    var boxG = new TH.BoxGeometry(1, 1, 1);
+    poolInst("rampmark", 52, boxG, mat(0xff8a45, false), {});
 
     var rockG = new TH.DodecahedronGeometry(0.95, 0);
-    pool("rock", 26, function () { var m = new TH.Mesh(rockG, mat(0x7d8fa1)); m.castShadow = true; return m; });
+    poolInst("rock", 26, rockG, mat(0x7d8fa1), { cast: true });
 
-    // Drei Baumarten – Fichte, schlanke Tanne, runder Busch-Baum
-    pool("tree", 330, function () {
-      var g = new TH.Group();
-      var t = new TH.Mesh(new TH.CylinderGeometry(0.16, 0.24, 1.2, 6), mat(0x574024));
-      t.position.y = 0.6; t.castShadow = true; g.add(t);
-      var c1 = new TH.Mesh(new TH.ConeGeometry(1.25, 2.0, 8), mat(0x2f5e4c));
-      c1.position.y = 1.9; c1.castShadow = true; g.add(c1);
-      var c2 = new TH.Mesh(new TH.ConeGeometry(0.95, 1.7, 8), mat(0x356a55));
-      c2.position.y = 2.9; c2.castShadow = true; g.add(c2);
-      var c3 = new TH.Mesh(new TH.ConeGeometry(0.62, 1.3, 8), mat(0x3c7860));
-      c3.position.y = 3.7; c3.castShadow = true; g.add(c3);
-      var sn = new TH.Mesh(new TH.ConeGeometry(0.52, 0.9, 8), mat(0xdfeaf5));
-      sn.position.y = 4.15; g.add(sn);
-      g.userData.parts = [c1, c2, c3];
-      return g;
-    });
+    // Drei Baumarten – Fichte, schlanke Tanne, runder Busch-Baum.
+    // Instanziert: je Baumteil eine Zeichenanweisung fuer alle Baeume zusammen.
+    poolInstGroup("tree", 330, [
+      { geo: new TH.CylinderGeometry(0.16, 0.24, 1.2, 6), mat: mat(0x574024), col: 0x574024, py: 0.6, cast: true },
+      { geo: new TH.ConeGeometry(1.25, 2.0, 8), mat: mat(0xffffff), col: 0x2f5e4c, py: 1.9, cast: true, tint: true },
+      { geo: new TH.ConeGeometry(0.95, 1.7, 8), mat: mat(0xffffff), col: 0x356a55, py: 2.9, cast: true, tint: true },
+      { geo: new TH.ConeGeometry(0.62, 1.3, 8), mat: mat(0xffffff), col: 0x3c7860, py: 3.7, cast: true, tint: true },
+      { geo: new TH.ConeGeometry(0.52, 0.9, 8), mat: mat(0xdfeaf5), col: 0xdfeaf5, py: 4.15 }
+    ]);
 
-    pool("tree2", 200, function () {          // hoch und schlank
-      var g = new TH.Group();
-      var t = new TH.Mesh(new TH.CylinderGeometry(0.13, 0.2, 2.2, 6), mat(0x4d3a22));
-      t.position.y = 1.1; t.castShadow = true; g.add(t);
-      var a1 = new TH.Mesh(new TH.ConeGeometry(0.95, 2.4, 8), mat(0x2b5647));
-      a1.position.y = 2.6; a1.castShadow = true; g.add(a1);
-      var a2 = new TH.Mesh(new TH.ConeGeometry(0.72, 2.1, 8), mat(0x31624f));
-      a2.position.y = 4.0; a2.castShadow = true; g.add(a2);
-      var a3 = new TH.Mesh(new TH.ConeGeometry(0.5, 1.8, 8), mat(0x376b57));
-      a3.position.y = 5.2; a3.castShadow = true; g.add(a3);
-      var a4 = new TH.Mesh(new TH.ConeGeometry(0.3, 1.3, 8), mat(0x3d7460));
-      a4.position.y = 6.2; g.add(a4);
-      var s4 = new TH.Mesh(new TH.ConeGeometry(0.26, 0.8, 8), mat(0xe4eef7));
-      s4.position.y = 6.75; g.add(s4);
-      g.userData.parts = [a1, a2, a3, a4];
-      return g;
-    });
+    poolInstGroup("tree2", 200, [
+      { geo: new TH.CylinderGeometry(0.13, 0.2, 2.2, 6), mat: mat(0x4d3a22), col: 0x4d3a22, py: 1.1, cast: true },
+      { geo: new TH.ConeGeometry(0.95, 2.4, 8), mat: mat(0xffffff), col: 0x2b5647, py: 2.6, cast: true, tint: true },
+      { geo: new TH.ConeGeometry(0.72, 2.1, 8), mat: mat(0xffffff), col: 0x31624f, py: 4.0, cast: true, tint: true },
+      { geo: new TH.ConeGeometry(0.5, 1.8, 8), mat: mat(0xffffff), col: 0x376b57, py: 5.2, cast: true, tint: true },
+      { geo: new TH.ConeGeometry(0.3, 1.3, 8), mat: mat(0xffffff), col: 0x3d7460, py: 6.2, tint: true },
+      { geo: new TH.ConeGeometry(0.26, 0.8, 8), mat: mat(0xe4eef7), col: 0xe4eef7, py: 6.75 }
+    ]);
 
-    pool("tree3", 200, function () {          // niedrig und rund, dick verschneit
-      var g = new TH.Group();
-      var t = new TH.Mesh(new TH.CylinderGeometry(0.15, 0.2, 0.8, 6), mat(0x5c4428));
-      t.position.y = 0.4; t.castShadow = true; g.add(t);
-      var k = new TH.Mesh(new TH.SphereGeometry(1.05, 9, 7), mat(0x33664f));
-      k.position.y = 1.5; k.scale.set(1, 0.85, 1); k.castShadow = true; g.add(k);
-      var k2 = new TH.Mesh(new TH.SphereGeometry(0.7, 8, 6), mat(0x3a7059));
-      k2.position.set(0.55, 2.05, -0.3); k2.castShadow = true; g.add(k2);
-      var sc2 = new TH.Mesh(new TH.SphereGeometry(0.95, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2.2), mat(0xe8f1f9));
-      sc2.position.y = 1.72; sc2.scale.set(1, 0.6, 1); g.add(sc2);
-      g.userData.parts = [k, k2];
-      return g;
-    });
+    poolInstGroup("tree3", 200, [
+      { geo: new TH.CylinderGeometry(0.15, 0.2, 0.8, 6), mat: mat(0x5c4428), col: 0x5c4428, py: 0.4, cast: true },
+      { geo: new TH.SphereGeometry(1.05, 9, 7), mat: mat(0xffffff), col: 0x33664f, py: 1.5, sy: 0.85, cast: true, tint: true },
+      { geo: new TH.SphereGeometry(0.7, 8, 6), mat: mat(0xffffff), col: 0x3a7059, px: 0.55, py: 2.05, pz: -0.3, cast: true, tint: true },
+      { geo: new TH.SphereGeometry(0.95, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2.2), mat: mat(0xe8f1f9), col: 0xe8f1f9, py: 1.72, sy: 0.6 }
+    ]);
 
     // Hütten im Bergpark
     pool("hut", 40, function () {
@@ -1764,39 +1860,20 @@
       return g;
     });
 
-    pool("drift", 150, function () {
-      var m = new TH.Mesh(new TH.SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xdceaf6, false));
-      m.receiveShadow = true;
-      return m;
-    });
+    poolInst("drift", 150, new TH.SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2),
+             mat(0xdceaf6, false), { receive: true });
 
     // Spurrillen auf der Piste – reine Optik, geben das Gefühl von Tempo
-    pool("track", 120, function () {
-      var m = new TH.Mesh(new TH.PlaneGeometry(2.8, 2 * PATH_W - 3), new TH.MeshBasicMaterial({
-        color: 0x7f97b3, transparent: true, opacity: 0.09, depthWrite: false
-      }));
-      m.rotation.x = -Math.PI / 2;
-      m.renderOrder = 2;
-      return m;
-    });
+    poolInst("track", 120, new TH.PlaneGeometry(2.8, 2 * PATH_W - 3),
+             new TH.MeshBasicMaterial({ color: 0x7f97b3, transparent: true, opacity: 0.09, depthWrite: false }),
+             { renderOrder: 2, setup: function (o) { o.rotation.x = -Math.PI / 2; } });
 
     // Flache Schneebuckel auf der Bahn – nur Optik, aber man sieht endlich, wie schnell es geht
-    pool("mogul", 90, function () {
-      var m = new TH.Mesh(new TH.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xf2f8ff, false));
-      m.receiveShadow = true;
-      return m;
-    });
+    poolInst("mogul", 90, new TH.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+             mat(0xf2f8ff, false), { receive: true });
 
-    pool("bush", 340, function () {
-      var m = new TH.Mesh(new TH.DodecahedronGeometry(0.62, 0), mat(0x27523d));
-      m.castShadow = true;
-      return m;
-    });
-    pool("stone", 210, function () {
-      var m = new TH.Mesh(new TH.DodecahedronGeometry(0.75, 0), mat(0x5a6774));
-      m.castShadow = true;
-      return m;
-    });
+    poolInst("bush", 340, new TH.DodecahedronGeometry(0.62, 0), mat(0x27523d), { cast: true });
+    poolInst("stone", 210, new TH.DodecahedronGeometry(0.75, 0), mat(0x5a6774), { cast: true });
 
     pool("house", 6, function () {
       var g = new TH.Group();
@@ -1807,7 +1884,7 @@
       return g;
     });
 
-    pool("lm", 96, function () { var m = new TH.Mesh(new TH.BoxGeometry(1, 1, 1), mat(0xccd6e1)); m.castShadow = true; return m; });
+    poolInst("lm", 200, boxG, mat(0xccd6e1), { cast: true, color: true });
 
     // Stadthäuser: Block plus Dach
     var faceTex = facadeTexture();
@@ -1834,7 +1911,7 @@
     });
 
     // Gleise und Straßenbahn
-    pool("rail", 60, function () { var m = new TH.Mesh(new TH.BoxGeometry(1, 0.1, 0.16), mat(0x5c646e)); return m; });
+    poolInst("rail", 60, new TH.BoxGeometry(1, 0.1, 0.16), mat(0x5c646e), {});
     pool("tram", 3, function () {
       var g = new TH.Group();
       var b = new TH.Mesh(new TH.BoxGeometry(17, 3.1, 2.5), mat(0xd23c3c));
@@ -2478,12 +2555,18 @@
       // versetzte Wahrzeichen sind aus der Nahe ausserhalb des Blickfelds.
       // Flach am Boden, damit nichts kollidiert und nichts durchsticht -
       // die Stufen sind eine breite Wasserrinne, die man hinunterrutscht.
-      var kn = 22, kw = 7.5;
+      // Dritter Anlauf. Flach am Boden lasen sich die Stufen als blaue
+      // Bodenfliesen - eine Flaeche ohne Silhouette erkennt man nicht als
+      // Bauwerk. Jetzt mit echter Hoehe und NEBEN der Bahn: dadurch sieht man
+      // die senkrechten Seiten, und die Piste bleibt Schnee.
+      var kn = 20, kw = 8, koff = 29, stufe = 1.5;
       for (var i = 0; i < kn; i++) {
         var kx = x + i * kw, kg = groundM(kx);
-        var kz = pathCenter(2, kx);
-        lmBox(kx, kg + 0.04, kz, kw * 0.96, 0.1, 17, (i % 2) ? 0xe6eef6 : 0xdae5f0);
-        lmBox(kx, kg + 0.1, kz, kw * 0.6, 0.1, 10.5, 0x93c0e2);  // Wasserband
+        var kz = pathCenter(2, kx) - koff;
+        lmBox(kx, kg - 1.1, kz, kw, stufe + 1.1, 15, 0xdfe9f3);               // Stufenblock
+        lmBox(kx + 0.5, kg + stufe - 0.18, kz, kw * 0.72, 0.3, 11, 0x8ec3e8); // Wasser
+        lmBox(kx, kg + stufe * 0.2, kz - 7.4, kw, stufe + 0.9, 1.6, 0xccd8e4); // Randmauern
+        lmBox(kx, kg + stufe * 0.2, kz + 7.4, kw, stufe + 0.9, 1.6, 0xccd8e4);
       }
     } else if (n.indexOf("Fontäne") >= 0) {
       lmBox(x, gy, -off, 7, 0.7, 7, 0x6098c4);
