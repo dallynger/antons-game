@@ -267,6 +267,10 @@
   var VZMAX = 0.0864;        // seitliches Tempo
   var VMAX = 1.2467;         // Tempolimit ~34 m/s, mit Schub-Ausbau etwas mehr
   var VSTOP = 0.11;          // darunter ist Schluss (~3 m/s)
+  var PITCH_V = G * 0.95;    // Steigen und Sinken durch Neigen
+  var PITCH_H = 0.0069;      // Tempogewinn beim Abtauchen
+  var DIVE_CAP = 0.35;       // so viel ueber dem Limit darf ein Sturzflug kurz
+  var LIFT_CAP = G * 0.92;   // Auftrieb bleibt immer unter der Schwerkraft
   var MAX_M = 7800;
 
   var UPGRADES = [
@@ -496,6 +500,7 @@
     S.vx = 0; S.vy = 0; S.z = 0; S.vz = 0; S.steer = 0;
     S.coins = 0; S.combo = 0; S.comboBest = 0; S.hits = 0;
     S.airTime = 0; S.slideTime = 0; S.spin = 0; S.lastTree = 0;
+    S.pitch = 0;
     S.newGoals = []; S.newSecrets = [];
     S.fuelMax = 550 + lv("sprit") * 159;
     S.fuel = S.fuelMax;
@@ -548,6 +553,7 @@
       S.held = true;
       if (S.phase === "fly") S.boosting = true;
       S.steer = steerFrom(p.x);
+      S.pitch = pitchFrom(p.y);
       return;
     }
   }
@@ -555,10 +561,15 @@
     var d = (x - W / 2) / (W * 0.34);          // Mitte = geradeaus, Rand = voll
     return Math.max(-1, Math.min(1, d));
   }
+  // oben am Bildschirm = Nase hoch, unten = Sturzflug
+  function pitchFrom(y) {
+    var d = (H / 2 - y) / (H * 0.28);
+    return Math.max(-1, Math.min(1, d));
+  }
   function onMove(e) {
     var p = ptXY(e);
     if (aim.on) { aim.x = p.x; aim.y = p.y; aimUpdate(); return; }
-    if (S.held) S.steer = steerFrom(p.x);
+    if (S.held) { S.steer = steerFrom(p.x); S.pitch = pitchFrom(p.y); }
   }
   function onUp() {
     if (aim.on) {
@@ -572,6 +583,7 @@
     S.boosting = false;
     S.held = false;
     S.steer = 0;
+    S.pitch = 0;
   }
 
   el.c.addEventListener("pointerdown", onDown);
@@ -592,11 +604,15 @@
     if (e.code === "Space") { e.preventDefault(); S.boosting = true; }
     if (e.code === "ArrowLeft") S.steer = -1;
     if (e.code === "ArrowRight") S.steer = 1;
+    if (e.code === "ArrowUp") { e.preventDefault(); S.pitch = 1; }
+    if (e.code === "ArrowDown") { e.preventDefault(); S.pitch = -1; }
   });
   window.addEventListener("keyup", function (e) {
     if (e.code === "Space") S.boosting = false;
     if (e.code === "ArrowLeft" && S.steer < 0) S.steer = 0;
     if (e.code === "ArrowRight" && S.steer > 0) S.steer = 0;
+    if (e.code === "ArrowUp" && S.pitch > 0) S.pitch = 0;
+    if (e.code === "ArrowDown" && S.pitch < 0) S.pitch = 0;
   });
 
   // ---------- Schritt ----------
@@ -616,9 +632,29 @@
         S.fuel -= 1;
         if (S.t % 3 === 0) puff(2, "schub");
       }
-      S.vy += G - Math.min(G * (0.30 + lv("fluegel") * 0.05), Math.max(0, S.vx) * (0.00288 + lv("fluegel") * 0.000704));
+      // Neigen: Nase runter tauscht Hoehe gegen Tempo, Nase hoch andersherum.
+      // Die Fluegel geben mehr Ruderwirkung, nicht mehr Endtempo.
+      var auth = 1 + lv("fluegel") * 0.15;
+      var lift = Math.min(G * (0.30 + lv("fluegel") * 0.05),
+                          Math.max(0, S.vx) * (0.00288 + lv("fluegel") * 0.000704));
+      if (S.pitch < 0) {                       // Nase runter: Hoehe wird zu Tempo
+        S.vy += -S.pitch * PITCH_V * auth;
+        S.vx += -S.pitch * PITCH_H * auth;
+      } else if (S.pitch > 0) {                // Nase hoch: Tempo wird zu Gleitzeit
+        // Auftrieb braucht Fahrtwind: wer das Tempo verliert, sackt weg
+        lift += S.pitch * G * 0.45 * auth * Math.min(1, Math.max(0, S.vx) / (VMAX * 0.8));
+        S.vx -= S.pitch * PITCH_H * 0.8;
+        if (S.vx < 0) S.vx = 0;
+      }
+      // Auftrieb darf die Schwerkraft nie erreichen. Das ist die harte Grenze,
+      // die endloses Steigen ausschliesst - egal wie weit Fluegel ausgebaut sind.
+      if (lift > LIFT_CAP) lift = LIFT_CAP;
+      S.vy += G - lift;
       S.vx *= AIR; S.vy *= AIR;
-      var vcap = VMAX + lv("schub") * 0.044;
+      // Nur waehrend des Sturzflugs darf das Limit kurz ueberschritten werden.
+      // Sobald die Nase wieder hoch geht, wird sofort gekappt - so laesst sich
+      // kein Tempo ansparen und nichts schaukelt sich auf.
+      var vcap = (VMAX + lv("schub") * 0.044) * (1 + DIVE_CAP * Math.max(0, -S.pitch));
       if (S.vx > vcap) S.vx = vcap;
       S.x += S.vx; S.y += S.vy;
       S.spin += S.vx * 0.0375;
@@ -854,7 +890,7 @@
     });
     h.push('</div>');
 
-    h.push('<div class="hint">Zwille nach hinten ziehen und loslassen. In der Luft tippen und halten gibt Schub, solange der Balken unten reicht. Beim Rutschen links oder rechts antippen, um die Spur zu wechseln \u2013 Rampen bringen dich wieder hoch.</div>');
+    h.push('<div class="hint">Zwille nach hinten ziehen und loslassen. In der Luft tippen und halten gibt Schub, solange der Balken unten reicht. Dabei den Finger nach oben oder unten ziehen: unten geht die Nase runter, das gibt Tempo, oben zieht er die Nase hoch und gleitet weiter. Beim Rutschen links oder rechts antippen, um die Spur zu wechseln \u2013 Rampen bringen dich wieder hoch.</div>');
     h.push(wardrobeHtml());
     h.push('<div class="sticky"><button class="btn" id="again">Nochmal</button></div>');
 
@@ -1856,7 +1892,7 @@
         blob.visible = true;
       }
       var lean = Math.max(-0.5, Math.min(0.5, -S.vz * 6.9));
-      var pitch = S.phase === "fly" ? Math.max(-0.4, Math.min(0.6, S.vy * 0.69)) : 0;
+      var pitch = S.phase === "fly" ? Math.max(-0.5, Math.min(0.7, S.vy * 0.69 - S.pitch * 0.22)) : 0;
       anton.rotation.set(pitch, 0, lean);
       ringMesh.rotation.z += S.vx * 0.1875;
       // leichtes Wippen beim Rutschen
