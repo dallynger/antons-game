@@ -1289,7 +1289,8 @@
     renderer.shadowMap.type = TH.PCFSoftShadowMap;
     var sc2 = sun && sun.shadow;
 
-    scene.add(new TH.HemisphereLight(0xb2d4f4, 0x3b5a80, 0.46));
+    himmel = new TH.HemisphereLight(0xb2d4f4, 0x3b5a80, 0.46);
+    scene.add(himmel);
     sun = new TH.DirectionalLight(0xfff0d2, 1.44);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -1320,7 +1321,54 @@
     }
   }
 
-  var skyDome, sunDisc, sunGlow;
+  var skyDome, sunDisc, sunGlow, himmel;
+
+  // ---------- Tageszeit ueber die Strecke ----------
+  // Die Strecke ist 7,8 km lang, da darf sich der Himmel aendern. Vier
+  // Stuetzstellen, dazwischen wird gemischt. Alles nur Farben und eine
+  // Lichtstaerke - es kostet nichts, wirkt aber auf jedem Meter.
+  var TAG = [
+    { m: 0,    himmelOben: 0x1f4f85, himmelUnten: 0xbcd0e6, dunst: 0x8fb3d4,
+      sonne: 0xffcf96, staerke: 1.06, obenHell: 0x8fb6e2, untenHell: 0x2c4870, hMenge: 0.60,
+      scheibe: 0xffe6bc, berg: 0x748fb0, tint: 0.86 },
+    { m: 2200, himmelOben: 0x3f7cbb, himmelUnten: 0xe4ecf4, dunst: 0xaecbe4,
+      sonne: 0xfff0d2, staerke: 1.44, obenHell: 0xb2d4f4, untenHell: 0x3b5a80, hMenge: 0.46,
+      scheibe: 0xfff6e2, berg: 0x9db3cc, tint: 1.00 },
+    { m: 5200, himmelOben: 0x4a86c4, himmelUnten: 0xf0f4f8, dunst: 0xbcd6ea,
+      sonne: 0xfff8ea, staerke: 1.52, obenHell: 0xc4dcf6, untenHell: 0x42618a, hMenge: 0.44,
+      scheibe: 0xffffff, berg: 0xa8bcd2, tint: 1.04 },
+    { m: 7800, himmelOben: 0x2f63a6, himmelUnten: 0xffc98a, dunst: 0xd3c6cc,
+      sonne: 0xffb254, staerke: 1.62, obenHell: 0xbfc9e0, untenHell: 0x59496b, hMenge: 0.44,
+      scheibe: 0xffc074, berg: 0xa79ab0, tint: 0.94 }
+  ];
+  var _cA = new TH.Color(), _cB = new TH.Color();
+  function mische(ziel, a, b, t) {
+    _cA.setHex(a); _cB.setHex(b);
+    ziel.copy(_cA).lerp(_cB, t);
+  }
+  function setzeTageszeit(m) {
+    if (!skyDome) return;
+    var i = 0;
+    while (i < TAG.length - 2 && m > TAG[i + 1].m) i++;
+    var a = TAG[i], b = TAG[i + 1];
+    var t = Math.max(0, Math.min(1, (m - a.m) / (b.m - a.m)));
+    t = t * t * (3 - 2 * t);                       // weicher Uebergang
+    // Die Kuppel hat ihre Farben in den Ecken; hier wird nur auf- oder abgeblendet
+    skyDome.material.color.setScalar(a.tint + (b.tint - a.tint) * t);
+    mische(scene.fog.color, a.dunst, b.dunst, t);
+    scene.background.copy(scene.fog.color).lerp(_cA.setHex(a.himmelOben), 0.35);
+    mische(sun.color, a.sonne, b.sonne, t);
+    sun.intensity = a.staerke + (b.staerke - a.staerke) * t;
+    mische(himmel.color, a.obenHell, b.obenHell, t);
+    mische(himmel.groundColor, a.untenHell, b.untenHell, t);
+    himmel.intensity = a.hMenge + (b.hMenge - a.hMenge) * t;
+    if (sunDisc) mische(sunDisc.material.color, a.scheibe, b.scheibe, t);
+    if (sunGlow) mische(sunGlow.material.color, a.scheibe, b.scheibe, t);
+    for (var r = 0; r < ridges.length; r++) {
+      mische(ridges[r].material.color, a.berg, b.berg, t);
+      ridges[r].material.color.multiplyScalar(1 + r * 0.06);
+    }
+  }
   var ridges = [];
   function buildSky() {
     var g = new TH.SphereGeometry(VIEW + 60, 18, 12);
@@ -2434,6 +2482,7 @@
     snow.geometry.attributes.position.needsUpdate = true;
     stepDust();
     snow.position.set(camPos.x + 20, camPos.y - 10, camPos.z);
+    setzeTageszeit(Math.max(0, camPos.x));
     if (skyDome) skyDome.position.set(camPos.x, 0, camPos.z);
     for (var ri = 0; ri < ridges.length; ri++) ridges[ri].position.set(camPos.x, groundM(camPos.x) * 0.25, camPos.z);
     if (sunDisc) {

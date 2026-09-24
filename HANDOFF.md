@@ -51,10 +51,10 @@ Ausreißer-Physik und ist entfernt.
 1. **Konzeptdokument** (Rev 34) ist weiterhin veraltet und beschreibt einen
    Stand von vor diesen Änderungen.
 2. **Reste beim Instancing**: Pistenstangen und Hütten laufen noch als Gruppen.
-3. **Grafik-Inhalt**, unangetastet: bessere Baum- und Felsmodelle, Wetter und
-   Tageszeit über die Strecke, lebendigere Stadt (fahrende Straßenbahnen,
-   Schaufenster, Kirchtürme), Anton selbst (flatternder Schal, Schneefahne,
-   Reaktion beim Aufprall).
+3. **Grafik-Inhalt**, unangetastet: bessere Baum- und Felsmodelle, lebendigere
+   Stadt (fahrende Straßenbahnen, Schaufenster, Kirchtürme), Anton selbst
+   (flatternder Schal, Schneefahne, Reaktion beim Aufprall). Die Tageszeit ist
+   erledigt, echtes Wetter (Schneetreiben, Nebelbänke) noch nicht.
 
 Bewusst zurückgestellt: Töne, die Stadtabschnitte erreichbar machen.
 
@@ -173,6 +173,13 @@ Drehung haben, und `house()` setzt sie je Haus einzeln.
 | Allee | 733 | 123 |
 | Innenstadt | 734 | 119 |
 | Karlsaue | 624 | 132 |
+
+**Tageszeit.** Der Himmel wandert über die Strecke: kalter Morgen am Herkules,
+klarer Vormittag im Bergpark, heller Mittag über der Stadt, Abendlicht am
+Buga-See. Vier Stützstellen in `TAG`, dazwischen wird weich gemischt. Betroffen
+sind Kuppelhelligkeit, Dunstfarbe, Hintergrund, Sonnenfarbe und -stärke, beide
+Farben des Himmelslichts, Sonnenscheibe und Bergketten. Kostet nur Farbwerte je
+Bild, wirkt aber auf jedem Meter.
 
 **Bergketten** am Horizont: drei gezackte Bänder auf der Himmelskuppel, die mit
 der Kamera mitlaufen und nie näher kommen. Drei Meshes für die ganze Tiefe.
