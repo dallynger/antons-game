@@ -1553,7 +1553,7 @@
     tGeo.attributes.position.needsUpdate = true;
     tGeo.attributes.color.needsUpdate = true;
     tGeo.attributes.uv.needsUpdate = true;
-    if (SPARSAM ? (S.t % 4) === 0 : (S.t & 1) === 0) tGeo.computeVertexNormals();
+    if ((S.t % NORM_SKIP) === 0) tGeo.computeVertexNormals();
     tGeo.boundingSphere = null;
   }
 
@@ -1922,7 +1922,7 @@
                      renderer: function () { return renderer; }, sun: function () { return sun; },
                      scene: function () { return scene; }, terrain: function () { return terrain; },
                      camera: function () { return camera; },
-                     stufe: function () { return { stufe: STUFE, sparsam: SPARSAM, view: VIEW }; } };
+                     stufe: function () { return { stufe: STUFE, sparsam: SPARSAM, view: VIEW, schatten: renderer.shadowMap.enabled, pr: renderer.getPixelRatio() }; } };
   }
   function hideRest() {
     for (var k in pools) {
@@ -2222,30 +2222,33 @@
   // ---------- Bild bauen ----------
   var camPos = { x: -16, y: 6, z: 0 }, camLook = { x: 0, y: 0, z: 0 };
 
-  // Leistungsstufen statt einer einmaligen Entscheidung.
+  // Leistungsstufen. Wichtig ist die Reihenfolge: zuerst faellt alles Teure,
+  // das man kaum vermisst (Schatten, Aufloesung, Sichtweite, Rechenarbeit am
+  // Gelaende) - und erst ganz zuletzt wird die Welt ausgeduennt. Vorher stand
+  // das Ausduennen schon auf Stufe 2, weshalb Antons iPhone in einer kargen
+  // Landschaft landete, obwohl noch billigere Stellschrauben offen waren.
   //
-  // Vorher wurde die Bildrate ueber die ersten 2,2 Sekunden gemessen - also
-  // genau waehrend Shader uebersetzt, Texturen erzeugt und ueber 2500 Objekte
-  // gebaut werden. Faellt sie dabei unter 26, schaltete das Spiel dauerhaft
-  // und unwiderruflich in den Sparmodus, selbst wenn das Geraet danach
-  // muehelos mitgekommen waere. Auf dem iPhone ist genau das passiert.
-  //
-  // Jetzt: Anlaufzeit abwarten, dann laufend in Fenstern messen. Bei zu
-  // wenig Bildern eine Stufe herunter, bei anhaltend viel Luft wieder herauf.
-  // Die Hysterese (drei gute Fenster) verhindert Hin- und Herschalten.
-  var STUFE = 0;                    // 0 voll, 1 reduziert, 2 sparsam
+  // Gemessen wird erst nach dem Anlauf und dann laufend, herunter wie herauf.
+  var STUFE = 0;                    // 0 voll ... 3 sparsam
+  var TERR_SKIP = 1, NORM_SKIP = 2;
   var perfFrames = 0, perfStart = 0, warmFrames = 0, gute = 0;
   var NODEGRADE = /voll/.test(location.search);
+  var FEST = (function () {
+    var m = /[?&]stufe=([0-3])/.exec(location.search);
+    return m ? +m[1] : -1;          // zum Ausprobieren auf dem echten Geraet
+  })();
   var VIEW_VOLL = VIEW;
 
   function setzeStufe(n) {
-    n = Math.max(0, Math.min(2, n));
+    n = Math.max(0, Math.min(3, n));
     if (n === STUFE) return;
     STUFE = n;
-    SPARSAM = n >= 2;
-    VIEW = n === 0 ? VIEW_VOLL : n === 1 ? Math.round(VIEW_VOLL * 0.82) : 120;
+    SPARSAM = n >= 3;                                  // erst ganz zuletzt
+    VIEW = [VIEW_VOLL, Math.round(VIEW_VOLL * 0.88), Math.round(VIEW_VOLL * 0.74), 120][n];
     renderer.shadowMap.enabled = (n === 0) && !IOS_WEAK;
-    renderer.setPixelRatio(n === 0 ? DPR : n === 1 ? Math.min(DPR, 1.5) : 1);
+    renderer.setPixelRatio([DPR, Math.min(DPR, 1.5), 1, 1][n]);
+    TERR_SKIP = [1, 1, 2, 2][n];                       // Gelaende seltener neu aufbauen
+    NORM_SKIP = [2, 3, 4, 6][n];                       // Normalen seltener rechnen
     scene.fog.near = n === 0 ? 34 : 24;
     scene.fog.far = VIEW * (n === 0 ? 1.9 : 1.7);
     camera.far = VIEW + 150;
@@ -2253,7 +2256,7 @@
   }
 
   function checkPerf(now) {
-    if (NODEGRADE) return;
+    if (NODEGRADE || FEST >= 0) return;
     // Anlauf nicht mitzaehlen: die ersten Bilder tragen den Aufbau
     if (warmFrames < 90) { warmFrames++; perfStart = now; perfFrames = 0; return; }
     if (!perfStart) { perfStart = now; return; }
@@ -2378,7 +2381,7 @@
       return;
     }
 
-    updateTerrain(camPos.x, camPos.z);
+    if (TERR_SKIP === 1 || (S.t % TERR_SKIP) === 0) updateTerrain(camPos.x, camPos.z);
     resetPools();
     placeProps(mNow);
 
@@ -2923,6 +2926,9 @@
     setTimeout(function () { loadEl.style.display = "none"; }, 320);
   }
   resize();
+  // Erst hier, nicht bei der Definition: setzeStufe() braucht Renderer und
+  // Szene, die es davor noch nicht gibt.
+  if (FEST >= 0) setzeStufe(FEST);
   updateHud();
   showMenu();
   requestAnimationFrame(frame);
