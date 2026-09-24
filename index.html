@@ -1345,6 +1345,40 @@
       sonne: 0xffb254, staerke: 1.62, obenHell: 0xbfc9e0, untenHell: 0x59496b, hMenge: 0.44,
       scheibe: 0xffc074, berg: 0xa79ab0, tint: 0.94 }
   ];
+  // ---------- Wetter ueber die Strecke ----------
+  // Zwei Groessen: wie stark es schneit und wie dicht der Nebel steht. Beide
+  // haengen an der Streckenposition, dazwischen wird weich gemischt. So hat
+  // jeder Abschnitt sein eigenes Wetter, ohne dass etwas nachgeladen wird.
+  var WETTER = [
+    { m: 0,    schnee: 0.85, nebel: 0.55 },   // oben am Herkules: dichtes Treiben
+    { m: 900,  schnee: 0.55, nebel: 0.30 },   // Bergpark: laesst nach
+    { m: 2600, schnee: 0.18, nebel: 0.10 },   // Allee: klar
+    { m: 5200, schnee: 0.05, nebel: 0.05 },   // Innenstadt: trocken
+    { m: 6500, schnee: 0.30, nebel: 0.95 },   // ueber der Fulda: Nebelbank
+    { m: 7800, schnee: 0.60, nebel: 0.25 }    // Buga-See: leichtes Abendtreiben
+  ];
+  var wSchnee = 0.5, wNebel = 0.3, wWind = 0;
+  function setzeWetter(m) {
+    var i = 0;
+    while (i < WETTER.length - 2 && m > WETTER[i + 1].m) i++;
+    var a = WETTER[i], b = WETTER[i + 1];
+    var t = Math.max(0, Math.min(1, (m - a.m) / (b.m - a.m)));
+    t = t * t * (3 - 2 * t);
+    wSchnee = a.schnee + (b.schnee - a.schnee) * t;
+    wNebel = a.nebel + (b.nebel - a.nebel) * t;
+    // Wind dreht langsam, damit das Treiben nicht schnurgerade faellt
+    wWind = Math.sin(m / 620) * 0.5 + Math.sin(m / 190) * 0.22;
+    if (snow) {
+      snow.material.size = 0.14 + wSchnee * 0.26;
+      snow.material.opacity = 0.18 + wSchnee * 0.62;
+    }
+    // Nebelbank zieht die Sicht zusammen, ohne die Stufe zu veraendern
+    // Nur maessig am Nahbereich ziehen: sonst liegt der Dunst schon auf Anton
+    // selbst, der nur 11 m vor der Kamera sitzt.
+    scene.fog.near = fogNahBasis * (1 - wNebel * 0.52);
+    scene.fog.far = fogFernBasis * (1 - wNebel * 0.62);
+  }
+
   var _cA = new TH.Color(), _cB = new TH.Color();
   function mische(ziel, a, b, t) {
     _cA.setHex(a); _cB.setHex(b);
@@ -2325,6 +2359,7 @@
   // Landschaft landete, obwohl noch billigere Stellschrauben offen waren.
   //
   // Gemessen wird erst nach dem Anlauf und dann laufend, herunter wie herauf.
+  var fogNahBasis = 34, fogFernBasis = 210 * 1.9;
   var STUFE = 0;                    // 0 voll ... 3 sparsam
   var TERR_SKIP = 1, NORM_SKIP = 2;
   var perfFrames = 0, perfStart = 0, warmFrames = 0, gute = 0;
@@ -2348,8 +2383,10 @@
     renderer.setPixelRatio([DPR, Math.min(DPR, 1.5), 1, 1][n]);
     TERR_SKIP = [1, 1, 2, 2][n];                       // Gelaende seltener neu aufbauen
     NORM_SKIP = [2, 3, 4, 6][n];                       // Normalen seltener rechnen
-    scene.fog.near = n === 0 ? 34 : 24;
-    scene.fog.far = VIEW * (n === 0 ? 1.9 : 1.7);
+    fogNahBasis = n === 0 ? 34 : 24;
+    fogFernBasis = VIEW * (n === 0 ? 1.9 : 1.7);
+    scene.fog.near = fogNahBasis;
+    scene.fog.far = fogFernBasis;
     camera.far = VIEW + 150;
     camera.updateProjectionMatrix();
   }
@@ -2550,15 +2587,27 @@
       if (S.phase === "slide") anton.position.y += Math.sin(S.t * 0.18) * Math.min(0.04, Math.abs(S.vx) * 0.0375);
     }
 
-    // Schnee folgt der Kamera
+    // Schnee folgt der Kamera. Fallen, seitlich treiben, und je nach Wetter
+    // schneller oder langsamer - bei dichtem Treiben steht es fast quer.
+    var fall = 0.035 + wSchnee * 0.075;
+    var drift = wWind * (0.02 + wSchnee * 0.06);
     for (var i = 0; i < 260; i++) {
-      snowPos[i * 3 + 1] -= 0.06;
-      if (snowPos[i * 3 + 1] < -4) snowPos[i * 3 + 1] = 26;
+      snowPos[i * 3 + 1] -= fall;
+      snowPos[i * 3 + 2] += drift;
+      snowPos[i * 3] -= drift * 0.4;
+      if (snowPos[i * 3 + 1] < -4) {
+        snowPos[i * 3 + 1] = 26;
+        snowPos[i * 3] = (Math.random() - 0.5) * 70;
+        snowPos[i * 3 + 2] = (Math.random() - 0.5) * 70;
+      }
+      if (snowPos[i * 3 + 2] > 35) snowPos[i * 3 + 2] -= 70;
+      else if (snowPos[i * 3 + 2] < -35) snowPos[i * 3 + 2] += 70;
     }
     snow.geometry.attributes.position.needsUpdate = true;
     stepDust();
     snow.position.set(camPos.x + 20, camPos.y - 10, camPos.z);
     setzeTageszeit(Math.max(0, camPos.x));
+    setzeWetter(Math.max(0, camPos.x));
     if (skyDome) skyDome.position.set(camPos.x, 0, camPos.z);
     for (var ri = 0; ri < ridges.length; ri++) ridges[ri].position.set(camPos.x, groundM(camPos.x) * 0.25, camPos.z);
     if (sunDisc) {

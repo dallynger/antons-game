@@ -52,8 +52,8 @@ Ausreißer-Physik und ist entfernt.
    Stand von vor diesen Änderungen.
 2. **Reste beim Instancing**: Pistenstangen und Hütten laufen noch als Gruppen.
 3. **Grafik-Inhalt**, offen: Felsmodelle, lebendigere Stadt (fahrende
-   Straßenbahnen, Schaufenster, Kirchtürme), echtes Wetter (Schneetreiben,
-   Nebelbänke). Tageszeit, Baummodelle und Anton sind erledigt.
+   Straßenbahnen, Schaufenster, Kirchtürme). Tageszeit, Wetter, Baummodelle
+   und Anton sind erledigt.
 
 Bewusst zurückgestellt: Töne, die Stadtabschnitte erreichbar machen.
 
@@ -191,6 +191,14 @@ Buga-See. Vier Stützstellen in `TAG`, dazwischen wird weich gemischt. Betroffen
 sind Kuppelhelligkeit, Dunstfarbe, Hintergrund, Sonnenfarbe und -stärke, beide
 Farben des Himmelslichts, Sonnenscheibe und Bergketten. Kostet nur Farbwerte je
 Bild, wirkt aber auf jedem Meter.
+
+**Wetter.** Zwei Größen entlang der Strecke, in `WETTER`: wie stark es schneit
+und wie dicht der Nebel steht. Am Herkules dichtes Treiben, im Bergpark
+nachlassend, in Allee und Innenstadt klar, über der Fulda eine Nebelbank
+(Sicht 165 statt 374 m), am Buga-See leichtes Abendtreiben. Der Schnee treibt
+seitlich, der Wind dreht langsam mit der Position. Die Nebelbank rechnet auf
+den Werten der Leistungsstufe (`fogNahBasis`, `fogFernBasis`) und verändert die
+Stufe selbst nicht.
 
 **Bergketten** am Horizont: drei gezackte Bänder auf der Himmelskuppel, die mit
 der Kamera mitlaufen und nie näher kommen. Drei Meshes für die ganze Tiefe.
