@@ -313,7 +313,9 @@
   var STEER = 0.007695;     // seitliche Beschleunigung
   var VZMAX = 0.1215;        // seitliches Tempo
   var VMAX = 1.7531719;         // Tempolimit ~34 m/s, mit Schub-Ausbau etwas mehr
-  var VSTOP = 0.1546875;          // darunter ist Schluss (~3 m/s)
+  var VSTOP = 0.35;               // darunter ist Schluss (~9 m/s, gut 30 km/h)
+  var STALL_F = 75;               // Bilder ohne nennenswerten Fortschritt
+  var STALL_M = 4;                // ... und weniger als so viele Meter
   var PITCH_V = G * 0.95;    // Steigen und Sinken durch Neigen
   var PITCH_H = 0.01364502;  // Tempogewinn beim Abtauchen
   var DIVE_CAP = 0.35;       // so viel ueber dem Limit darf ein Sturzflug kurz
@@ -563,6 +565,7 @@
     S.pitch = 0;
     S.newGoals = []; S.newSecrets = [];
     S.turbo = 0;
+    S.stallX = 0; S.stallT = 0;
     S.fuelMax = 391 + lv("sprit") * 113;
     S.fuel = S.fuelMax;
     objCache = {};
@@ -760,6 +763,13 @@
       var vcap2 = (VMAX + lv("schub") * 0.061875) * (1 + (S.turbo > 0 ? TURBO_CAP : 0));
       if (S.vx > vcap2) S.vx -= (S.vx - vcap2) * 0.05;
       if (S.vx < VSTOP) { endRun(); return; }
+      // Zweite Bremse: auch wenn das Tempo knapp ueber der Grenze bleibt, ist
+      // Schluss, sobald ueber laengere Zeit kaum noch Strecke dazukommt.
+      // Vorher kroch der Lauf am Ende achtmal Sekunden ueber 50 Meter.
+      if (++S.stallT >= STALL_F) {
+        if (mNow - S.stallX < STALL_M) { endRun(); return; }
+        S.stallX = mNow; S.stallT = 0;
+      }
       S.x += S.vx;
       S.y = groundY(S.x / PPM);
       // Staub nach Tempo und Untergrund
@@ -1285,7 +1295,16 @@
     return "fulda";
   }
   // Fünf durchgehende Bahnen ziehen sich durch die Landschaft – man wählt, welche man fährt
-  var PATHS = 5, PATH_W = 19;
+  var PATHS = 5, PATH_W = 19;     // Bezugsbreite, siehe pathW()
+  // Oben am Herkules ist die Bahn schmal und oeffnet sich nach unten, wie die
+  // Kaskaden selbst. Alles, was die Bahnbreite braucht, fragt hier nach.
+  var PATH_W_MAX = 24;
+  function pathW(x) {
+    if (x < 0) x = 0;
+    return 10.5
+      + 8.5 * Math.min(1, x / 780)
+      + 5.0 * Math.min(1, Math.max(0, x - 780) / 2600);
+  }
   function pathCenter(i, x) {
     // Bei x=0 liegen alle Bahnen gerade, damit der Start immer auf einer liegt
     var damp = Math.min(1, Math.max(0, x) / 450);
@@ -1300,7 +1319,7 @@
     }
     return best;
   }
-  function isPath(x, z) { return pathDist(x, z) < PATH_W; }
+  function isPath(x, z) { return pathDist(x, z) < pathW(x); }
 
   function isRoad(x, z) {
     var zo = zoneAt(x);
@@ -1332,12 +1351,13 @@
                  + Math.sin(x * 0.63 + z * 0.51) * 0.08;
         // Die Bahn selbst bleibt glatt gewalzt, daneben wird das Gelände wellig
         var pdT = inside ? pathDist(x, z) : 999;
-        if (pdT < PATH_W + 8) bump *= 0.08 + 0.92 * Math.max(0, (pdT - PATH_W * 0.5) / (PATH_W * 0.5 + 8));
+        var pwT = pathW(x);
+        if (pdT < pwT + 8) bump *= 0.08 + 0.92 * Math.max(0, (pdT - pwT * 0.5) / (pwT * 0.5 + 8));
         // Schneewulst genau an der Pistenkante: gibt der Bahn eine Silhouette,
         // statt sie nur farblich abzusetzen. Rein optisch - groundM() und damit
         // die Physik bleiben unberuehrt, die Bahn faehrt sich weiter glatt.
-        if (pdT > PATH_W - 5 && pdT < PATH_W + 11) {
-          var rim = (pdT - (PATH_W - 5)) / 16;
+        if (pdT > pwT - 5 && pdT < pwT + 11) {
+          var rim = (pdT - (pwT - 5)) / 16;
           bump += Math.sin(rim * Math.PI) * 0.8;
         }
         var y = gy - (inside ? 0 : 1.6) + bump;
@@ -1357,10 +1377,11 @@
           // Punkt. Alles Feinere als das kann es nicht darstellen und zerfaellt
           // in harte Kanten - Rillen gehoeren deshalb in die Bodentextur, nicht
           // in die Eckfarben, und die Uebergaenge muessen breit genug sein.
-          if (pd < PATH_W - 9) {
+          var pw = pathW(x);
+          if (pd < pw - 9) {
             v *= 1.08;                                     // praeparierter Kern
-          } else if (pd < PATH_W + 3) {
-            var t = (pd - PATH_W + 9) / 12;                // 12 m weicher Rand
+          } else if (pd < pw + 3) {
+            var t = (pd - pw + 9) / 12;                    // 12 m weicher Rand
             v *= 1.08 - 0.21 * t * t;
           } else {
             v *= 0.94;
@@ -1876,7 +1897,7 @@
              mat(0xdceaf6, false), { receive: true });
 
     // Spurrillen auf der Piste – reine Optik, geben das Gefühl von Tempo
-    poolInst("track", 120, new TH.PlaneGeometry(2.8, 2 * PATH_W - 3),
+    poolInst("track", 120, new TH.PlaneGeometry(2.8, 2 * PATH_W_MAX - 3),
              new TH.MeshBasicMaterial({ color: 0x7f97b3, transparent: true, opacity: 0.09, depthWrite: false }),
              { renderOrder: 2, setup: function (o) { o.rotation.x = -Math.PI / 2; } });
 
@@ -2319,18 +2340,18 @@
         if (Math.abs(pc - camPos.z) > 95) continue;
         [-1, 1].forEach(function (sgn) {
           var po = take("pole");
-          if (po) po.position.set(px, groundM(px), pc + sgn * (PATH_W + 1.5));
+          if (po) po.position.set(px, groundM(px), pc + sgn * (pathW(px) + 1.5));
           // Schneewall am Bahnrand – gibt der Piste eine Kante statt einer leeren Fläche
           var dr = take("drift");
           if (dr) {
             var h4 = rnd(px * 0.53 + pi * 3.1 + sgn);
-            dr.position.set(px + h4 * 16, groundM(px) - 0.55, pc + sgn * (PATH_W + 3.2 + h4 * 2.2));
+            dr.position.set(px + h4 * 16, groundM(px) - 0.55, pc + sgn * (pathW(px) + 3.2 + h4 * 2.2));
             dr.scale.set(5.5 + h4 * 9, 0.85 + h4 * 0.65, 2.4 + h4 * 1.5);
           }
           var dr2 = take("drift");
           if (dr2 && (Math.round(px / 22) % 2) === 0) {
             var h5 = rnd(px * 0.71 + pi * 5.3 + sgn * 2);
-            dr2.position.set(px + h5 * 14, groundM(px) - 0.3, pc + sgn * (PATH_W + 8 + h5 * 7));
+            dr2.position.set(px + h5 * 14, groundM(px) - 0.3, pc + sgn * (pathW(px) + 8 + h5 * 7));
             dr2.scale.set(3 + h5 * 5, 0.5 + h5 * 0.7, 2 + h5 * 4);
           }
         });
@@ -2349,7 +2370,7 @@
         var mg = take("mogul");
         if (!mg) break;
         var r2 = rnd(mx * 0.91 + mi * 2.3);
-        mg.position.set(mx + r2 * 7, groundM(mx) - 0.24, mc + (r1 * 2 - 0.7) * PATH_W * 0.85);
+        mg.position.set(mx + r2 * 7, groundM(mx) - 0.24, mc + (r1 * 2 - 0.7) * pathW(mx) * 0.85);
         mg.scale.set(1.2 + r2 * 1.7, 0.36 + r1 * 0.22, 0.9 + r1 * 1.2);
       }
     }
@@ -2365,6 +2386,7 @@
         if (!tk) break;
         tk.position.set(tx2, groundM(tx2) + 0.22, tc);
         tk.rotation.z = (pathCenter(ti, tx2 + 12) - tc) / 12;
+        tk.scale.set(1, (2 * pathW(tx2) - 3) / (2 * PATH_W_MAX - 3), 1);
       }
     }
 
@@ -2458,8 +2480,9 @@
     // tatsächliche Standorte, nicht die Rasterzelle, gegen die Bahnen prüfen
     var tx = x + h2 * 6, tz = z + h3 * 7;
     var pd = pathDist(tx, tz);
-    if (pd < PATH_W + 2) return;                   // Bahn bleibt frei
-    if (pd < PATH_W + 7 && h < 0.42) {
+    var pw = pathW(x);
+    if (pd < pw + 2) return;                       // Bahn bleibt frei
+    if (pd < pw + 7 && h < 0.42) {
       // Randstreifen: keine Bäume, aber kleine Büschel und Steine, damit nichts leer wirkt
       if (h3 > 0.72) {
         var rb = take(h2 > 0.5 ? "bush" : "stone");
@@ -2495,7 +2518,7 @@
         if (h2 > 0.62) { var bu = take("bush"); if (bu) { bu.position.set(tx + 2.2, gy + 0.3, tz - 1.6); bu.scale.setScalar(0.7 + h3 * 0.6); } }
         if (h3 > 0.78) { var so = take("stone"); if (so) { so.position.set(tx - 2.4, gy + 0.3, tz + 1.4); so.scale.setScalar(0.6 + h2 * 0.7); so.rotation.set(h, h2 * 3, h3); } }
         // Zweiter, kleinerer Baum daneben: macht aus Einzelbaeumen Gruppen
-        if (!SPARSAM && h2 < 0.42 && pd > PATH_W + 9) {
+        if (!SPARSAM && h2 < 0.42 && pd > pw + 9) {
           var t2 = take(h3 < 0.5 ? "tree3" : "tree");
           if (t2) {
             var s2 = 0.45 + h3 * 0.55;
@@ -2507,7 +2530,7 @@
         }
       }
       if (h > 0.96) { var bn = take("bench"); if (bn) bn.position.set(x, gy, z); }
-      if (h2 > 0.93 && pd > PATH_W + 24) {
+      if (h2 > 0.93 && pd > pw + 24) {
         var hu = take("hut");
         if (hu) {
           hu.position.set(tx, gy, tz); hu.rotation.y = h * 6.3; hu.scale.setScalar(0.85 + h3 * 0.5);
@@ -2519,7 +2542,7 @@
       var big = zo === "innenstadt";
       // Haeuser halten Abstand zur Piste. Das wurde bisher nirgends geprueft;
       // mit der hoeheren Dichte standen sie mitten auf der Fahrbahn.
-      var frei = pathDist(tx, tz) > PATH_W + 7;
+      var frei = pathDist(tx, tz) > pw + 7;
       if (frei && h < (SPARSAM ? 0.5 : 0.76)) {
         house(tx, tz,
               7 + h2 * 6, 8 + h * 7,
@@ -2527,13 +2550,13 @@
               [0xdae1ea, 0xd2dae5, 0xe2e7ee, 0xcbd5e0, 0xd9cfc6, 0xcfd9d4][Math.floor(h3 * 6)]);
         // Hinterhaeuser versetzt dahinter: aus einer Reihe wird ein Viertel.
         // Seit die Haeuser instanziert sind, kostet jedes weitere fast nichts.
-        if (!SPARSAM && h2 > 0.35 && pathDist(tx + 5.5, tz + (h3 < 0.5 ? -11 : 11)) > PATH_W + 7) {
+        if (!SPARSAM && h2 > 0.35 && pathDist(tx + 5.5, tz + (h3 < 0.5 ? -11 : 11)) > pw + 7) {
           house(tx + 5.5, tz + (h3 < 0.5 ? -11 : 11),
                 6 + h3 * 5, 6 + h2 * 6,
                 (big ? 10 : 7) + h * 7, 1.3,
                 [0xd2dae5, 0xe2e7ee, 0xd9cfc6][Math.floor(h * 3)]);
         }
-        if (!SPARSAM && h3 > 0.5 && pathDist(tx - 6.5, tz + (h2 < 0.5 ? -19 : 19)) > PATH_W + 7) {
+        if (!SPARSAM && h3 > 0.5 && pathDist(tx - 6.5, tz + (h2 < 0.5 ? -19 : 19)) > pw + 7) {
           house(tx - 6.5, tz + (h2 < 0.5 ? -19 : 19),
                 5.5 + h2 * 5, 5 + h3 * 6,
                 (big ? 9 : 6) + h2 * 8, 1.2,
