@@ -278,9 +278,12 @@
   var VMAX = 1.7531719;         // Tempolimit ~34 m/s, mit Schub-Ausbau etwas mehr
   var VSTOP = 0.1546875;          // darunter ist Schluss (~3 m/s)
   var PITCH_V = G * 0.95;    // Steigen und Sinken durch Neigen
-  var PITCH_H = 0.01364502;      // Tempogewinn beim Abtauchen
+  var PITCH_H = 0.01364502;  // Tempogewinn beim Abtauchen
   var DIVE_CAP = 0.35;       // so viel ueber dem Limit darf ein Sturzflug kurz
   var LIFT_CAP = G * 0.92;   // Auftrieb bleibt immer unter der Schwerkraft
+  var TURBO_A = 0.0165;      // Schub waehrend Vollgas
+  var TURBO_CAP = 0.35;      // so viel ueber dem Limit traegt Vollgas
+  var TURBO_T = 130;         // Dauer in Bildern, gut zwei Sekunden
   var MAX_M = 7800;
 
   var UPGRADES = [
@@ -425,8 +428,9 @@
       if (r < 0.5) out.push({ m: m, z: oz, type: "coin", v: 1 });
       else if (r < 0.68) out.push({ m: m, z: oz, type: "coins", v: 5 });
       else if (r < 0.79) out.push({ m: m, z: oz, type: "pile", v: 14 });
-      else if (r < 0.93) out.push({ m: m, z: oz, type: "ramp" });
-      else out.push({ m: m, z: oz, type: "rock" });
+      else if (r < 0.90) out.push({ m: m, z: oz, type: "ramp" });
+      else if (r < 0.955) out.push({ m: m, z: oz, type: "rock" });
+      else out.push({ m: m, z: oz, type: "blitz" });
     }
     SECRETS.forEach(function (s) {
       if (s.m >= from && s.m < to) {
@@ -474,6 +478,7 @@
     aimDir: document.getElementById("aimDir"),
     aimText: document.getElementById("aimText"),
     aimLabel: document.getElementById("aimLabel"),
+    rush: document.getElementById("rush"),
     restart: document.getElementById("restart"),
     rush: document.getElementById("rush")
   };
@@ -513,6 +518,7 @@
     S.airTime = 0; S.slideTime = 0; S.spin = 0; S.lastTree = 0;
     S.pitch = 0;
     S.newGoals = []; S.newSecrets = [];
+    S.turbo = 0;
     S.fuelMax = 391 + lv("sprit") * 113;
     S.fuel = S.fuelMax;
     objCache = {};
@@ -646,6 +652,7 @@
 
     if (S.phase === "fly") {
       S.airTime++;
+      if (S.turbo > 0) { S.vx += TURBO_A; S.turbo--; }
       if (S.boosting && S.fuel > 0) {
         var p = (1 + lv("schub") * 0.2) * 0.006723;
         S.vx += p * 0.86; S.vy -= p * 0.5;
@@ -674,7 +681,8 @@
       // Nur waehrend des Sturzflugs darf das Limit kurz ueberschritten werden.
       // Sobald die Nase wieder hoch geht, wird sofort gekappt - so laesst sich
       // kein Tempo ansparen und nichts schaukelt sich auf.
-      var vcap = (VMAX + lv("schub") * 0.061875) * (1 + DIVE_CAP * Math.max(0, -S.pitch));
+      var vcap = (VMAX + lv("schub") * 0.061875) *
+                 (1 + Math.max(DIVE_CAP * Math.max(0, -S.pitch), S.turbo > 0 ? TURBO_CAP : 0));
       if (S.vx > vcap) S.vx = vcap;
       S.x += S.vx; S.y += S.vy;
       S.spin += S.vx * 0.052734375;
@@ -701,8 +709,12 @@
       var f = frictionAt(mNow, S.z);
       f = 1 - (1 - f) * (1 - lv("kufen") * 0.035) * ring().fric;
       S.vx *= f;
-      var vcap2 = VMAX + lv("schub") * 0.061875;
-      if (S.vx > vcap2) S.vx = vcap2;
+      if (S.turbo > 0) { S.vx += TURBO_A; S.turbo--; }
+      // Nach dem Vollgas wird nicht hart gekappt, der Schwung traegt kurz aus.
+      // Ansparen laesst er sich trotzdem nicht: Reibung und dieses Abklingen
+      // ziehen beide nach unten.
+      var vcap2 = (VMAX + lv("schub") * 0.061875) * (1 + (S.turbo > 0 ? TURBO_CAP : 0));
+      if (S.vx > vcap2) S.vx -= (S.vx - vcap2) * 0.05;
       if (S.vx < VSTOP) { endRun(); return; }
       S.x += S.vx;
       S.y = groundY(S.x / PPM);
@@ -795,8 +807,12 @@
       } else if (o.type === "ramp") {
         o.gone = true;
         if (S.phase === "slide") {
-          var jump = (o.big ? 0.945 : 0.6165) * ringJump();
-          S.vy = -jump; S.vx *= o.big ? 1.38 : 1.22;
+          // Eine Schanze wandelt Fahrt in Hoehe um: wer schnell ankommt,
+          // fliegt hoeher und verliert dabei etwas Tempo. Vorher wurde vx mit
+          // 1.38 multipliziert - die Schanze hat also Tempo erzeugt.
+          var fast = Math.min(1.35, Math.max(0.45, S.vx / VMAX));
+          var jump = (o.big ? 0.945 : 0.6165) * ringJump() * fast;
+          S.vy = -jump; S.vx *= o.big ? 0.90 : 0.945;
           S.phase = "fly";
           puff(14); S.shake = 0.25;
           if (o.secret && !S.newSecrets.some(function (s) { return s.m === o.secret.m; })) {
@@ -805,6 +821,12 @@
             banner(o.secret.name, "die Rutsche!");
           }
         }
+      } else if (o.type === "blitz") {
+        o.gone = true;
+        S.turbo = TURBO_T;
+        S.flash = 6;
+        puff(14, "schub");
+        banner("Vollgas!", "Blitz eingesammelt");
       } else if (o.type === "rock") {
         o.gone = true;
         S.vx *= 0.72; S.combo = 0; S.hits++;
@@ -833,6 +855,7 @@
 
   var lastCoins = -1;
   function updateHud() {
+    if (el.rush) el.rush.style.opacity = S.turbo > 0 ? "1" : "0";
     el.dist.textContent = Math.round(S.m) + " m";
     var cn = save.coins + S.coins;
     if (cn !== lastCoins) {
@@ -900,7 +923,7 @@
 
     h.push(shopHtml());
 
-    h.push('<div class="hint">Zwille nach hinten ziehen und loslassen. In der Luft tippen und halten gibt Schub, solange der Balken unten reicht. Dabei den Finger nach oben oder unten ziehen: unten geht die Nase runter, das gibt Tempo, oben zieht er die Nase hoch und gleitet weiter. Beim Rutschen links oder rechts antippen, um die Spur zu wechseln \u2013 Rampen bringen dich wieder hoch.</div>');
+    h.push('<div class="hint">Zwille nach hinten ziehen und loslassen. In der Luft tippen und halten gibt Schub, solange der Balken unten reicht. Dabei den Finger nach oben oder unten ziehen: unten geht die Nase runter, das gibt Tempo, oben zieht er die Nase hoch und gleitet weiter. Blitze auf der Strecke geben ein paar Sekunden Vollgas. Beim Rutschen links oder rechts antippen, um die Spur zu wechseln \u2013 Rampen bringen dich wieder hoch.</div>');
     h.push(wardrobeHtml());
     h.push('<div class="sticky"><button class="btn" id="again">Nochmal</button></div>');
 
@@ -1582,6 +1605,17 @@
       return g;
     });
 
+    // Blitz zum Einsammeln: Zickzack aus zwei schraegen Balken
+    pool("blitz", 24, function () {
+      var g = new TH.Group();
+      var m1 = new TH.Mesh(new TH.BoxGeometry(0.28, 1.15, 0.28), mat(0xffd21e, false));
+      m1.position.set(0.18, 0.52, 0); m1.rotation.z = 0.5;
+      var m2 = new TH.Mesh(new TH.BoxGeometry(0.28, 1.15, 0.28), mat(0xffb01e, false));
+      m2.position.set(-0.18, -0.35, 0); m2.rotation.z = 0.5;
+      g.add(m1); g.add(m2);
+      return g;
+    });
+
     pool("drift", 150, function () {
       var m = new TH.Mesh(new TH.SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xdceaf6, false));
       m.receiveShadow = true;
@@ -2070,6 +2104,12 @@
         m.scale.set(dp, h * 0.55, w);
         m.rotation.z = ang;
         m.position.set(o.m, gy + (dp / 2) * Math.sin(ang) + h * 0.275 * Math.cos(ang), o.z);
+      } else if (o.type === "blitz") {
+        var bz = take("blitz");
+        if (bz) {
+          bz.position.set(o.m, gy + 1.5 + Math.sin(S.t / 18) * 0.18, o.z);
+          bz.rotation.y = S.t * 0.055;
+        }
       } else if (o.type === "rock") {
         var k = take("rock");
         if (k) { k.position.set(o.m, gy + 0.5, o.z); k.rotation.set(o.m % 3, o.z % 3, 0); }
