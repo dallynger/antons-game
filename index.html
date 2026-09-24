@@ -782,37 +782,25 @@
   }
 
   // Bäume auf der Piste: dieselbe Formel wie beim Zeichnen, damit sie auch bremsen
-  function treeAt(m, z) {
-    var zo = zoneAt(m);
-    if (zo === "fulda") return 0;
-    var lim = (zo === "bergpark_oben" || zo === "bergpark") ? 0.76 : (zo === "aue" ? 0.38 : 0.5);
-    for (var xi = -1; xi <= 1; xi++) {
-      var x = Math.round(m / 7) * 7 + xi * 7;
-      for (var zi = -1; zi <= 1; zi++) {
-        var zz = Math.round(z / 9) * 9 + zi * 9;
-        if (isRoad(x, zz)) continue;
-        var h = rnd(x * 0.37 + zz * 0.13);
-        if (h >= lim) continue;
-        var h2 = rnd(x * 0.91 + zz * 0.29), h3 = rnd(x * 1.63 + zz * 0.71);
-        var tx = x + h2 * 6, tz = zz + h3 * 7;
-        var pd = pathDist(tx, tz);
-        if (pd < PATH_W + 2) continue;
-        if (pd < PATH_W + 7 && h < 0.42) continue;
-        if (Math.abs(tx - m) < 1.7 && Math.abs(tz - z) < 1.7) return x * 1000 + zz;
-      }
-    }
-    return 0;
-  }
 
   function collide() {
-    // Baumtreffer bremsen einmal pro Baum
-    if (S.phase === "slide") {
-      var th = treeAt(S.x / PPM, S.z);
-      if (th && th !== S.lastTree) {
-        S.lastTree = th;
-        S.vx *= 0.62; S.combo = 0; S.hits++;
-        puff(14, "hit"); S.shake = 0.55;
-      }
+    // Hindernisse aus der Zeichenliste. Im Flug zaehlt zusaetzlich die Hoehe:
+    // ueber den Baumwipfeln fliegt man frei darueber hinweg.
+    var pm = S.x / PPM;
+    var hoehe = -S.y / PPM - groundM(pm);
+    for (var si = 0; si < solidsN; si++) {
+      var so = solids[si];
+      if (so.id === S.lastTree) continue;
+      var dx = so.x - pm, dz = so.z - S.z;
+      if (dx * dx + dz * dz > so.r * so.r) continue;
+      if (hoehe > so.h) continue;
+      S.lastTree = so.id;
+      S.vx *= so.hart ? 0.42 : 0.62;
+      if (S.phase === "fly" && so.hart) S.vy = Math.max(S.vy, 0.12);
+      S.combo = 0; S.hits++;
+      puff(so.hart ? 20 : 14, "hit");
+      S.shake = so.hart ? 0.8 : 0.55;
+      break;
     }
     var mNow = S.x / PPM;
     var near = objectsBetween(mNow - 6, mNow + 6);
@@ -1556,9 +1544,23 @@
     m.visible = true;
     return m;
   }
-  function resetPools() { for (var k in pools) pools[k].used = 0; }
+  function resetPools() { for (var k in pools) pools[k].used = 0; solidsN = 0; }
+
+  // Was gezeichnet wird, traegt sich hier als Hindernis ein. Vorher rechnete
+  // treeAt() die Baumpositionen ein zweites Mal nach - sobald eine der beiden
+  // Formeln sich aenderte, drifteten sie auseinander und man flog durch Baeume.
+  // Jetzt gibt es nur noch eine Quelle.
+  var solids = [], solidsN = 0;
+  function addSolid(x, z, r, hoehe, hart) {
+    if (Math.abs(x - S.x / PPM) > 70) return;      // nur die Umgebung mitfuehren
+    if (solidsN >= solids.length) solids.push({});
+    var o = solids[solidsN++];
+    o.x = x; o.z = z; o.r = r; o.h = hoehe; o.hart = hart;
+    o.id = Math.round(x * 4) * 100003 + Math.round(z * 4);
+  }
   if (/[?&]debug/.test(location.search)) {
-    window.__dbg = { pools: pools, miss: poolMiss, info: function () { return renderer.info; } };
+    window.__dbg = { pools: pools, miss: poolMiss, info: function () { return renderer.info; },
+                     state: function () { return S; }, solids: function () { return solidsN; } };
   }
   function hideRest() {
     for (var k in pools) {
@@ -2281,6 +2283,7 @@
   function house(x, z, w, d, h, roof, color) {
     var g = take("bldg");
     if (!g) return;
+    addSolid(x, z, Math.max(w, d) * 0.42, h + roof, 1);
     g.position.set(x, groundM(x), z);
     g.userData.b.scale.set(d, h, w);
     g.userData.b.position.y = h / 2;
@@ -2342,6 +2345,7 @@
                  : 0.55 + h2 * 1.5;
           t.scale.set(sc * (0.85 + h3 * 0.35), sc * (0.8 + h2 * 0.65), sc * (0.85 + h3 * 0.35));
           t.rotation.y = h * 8;
+          addSolid(tx, tz, 1.25 + sc * 0.55, 3 + sc * 3.4, 0);
           // Grünton je Baum leicht verschieden
           var gr = 0.78 + h3 * 0.45;
           t.userData.parts.forEach(function (c, ci) {
@@ -2354,16 +2358,21 @@
         if (!SPARSAM && h2 < 0.42 && pd > PATH_W + 9) {
           var t2 = take(h3 < 0.5 ? "tree3" : "tree");
           if (t2) {
+            var s2 = 0.45 + h3 * 0.55;
             t2.position.set(tx + 3.6 - h3 * 1.2, gy, tz + 2.9 - h2 * 5.4);
-            t2.scale.setScalar(0.45 + h3 * 0.55);
+            t2.scale.setScalar(s2);
             t2.rotation.y = h2 * 9;
+            addSolid(tx + 3.6 - h3 * 1.2, tz + 2.9 - h2 * 5.4, 1.1 + s2 * 0.5, 3 + s2 * 3.4, 0);
           }
         }
       }
       if (h > 0.96) { var bn = take("bench"); if (bn) bn.position.set(x, gy, z); }
       if (h2 > 0.93 && pd > PATH_W + 24) {
         var hu = take("hut");
-        if (hu) { hu.position.set(tx, gy, tz); hu.rotation.y = h * 6.3; hu.scale.setScalar(0.85 + h3 * 0.5); }
+        if (hu) {
+          hu.position.set(tx, gy, tz); hu.rotation.y = h * 6.3; hu.scale.setScalar(0.85 + h3 * 0.5);
+          addSolid(tx, tz, 2.8 + h3 * 1.4, 4 + h3 * 2, 1);
+        }
       }
 
     } else if (zo === "allee" || zo === "westen" || zo === "innenstadt") {
@@ -2382,7 +2391,10 @@
         }
       } else if (h < (SPARSAM ? 0.62 : 0.80)) {
         var ts = take(h3 < 0.62 ? "tree" : "tree2");
-        if (ts) { ts.position.set(tx, gy, tz); ts.scale.setScalar(0.85 + h3 * 0.5); }
+        if (ts) {
+          ts.position.set(tx, gy, tz); ts.scale.setScalar(0.85 + h3 * 0.5);
+          addSolid(tx, tz, 1.4 + h3 * 0.5, 5 + h3 * 3, 0);
+        }
       }
       if (!SPARSAM && h3 > 0.9) { var lp = take("lamp"); if (lp) lp.position.set(tx, gy, tz); }
 
@@ -2391,7 +2403,10 @@
       if (zo === "fulda" && az < 60) return;
       if (h < (SPARSAM ? 0.38 : 0.56)) {
         var tp = take(h3 < 0.7 ? "tree" : "tree3");
-        if (tp) { tp.position.set(tx, gy, tz); tp.scale.setScalar(0.9 + h2 * 0.8); }
+        if (tp) {
+          tp.position.set(tx, gy, tz); tp.scale.setScalar(0.9 + h2 * 0.8);
+          addSolid(tx, tz, 1.4 + h2 * 0.6, 4 + h2 * 4, 0);
+        }
         if (!SPARSAM && h2 > 0.7) {
           var bu2 = take("bush");
           if (bu2) { bu2.position.set(tx - 2.8, gy + 0.3, tz + 2.2); bu2.scale.setScalar(0.6 + h3 * 0.7); }
