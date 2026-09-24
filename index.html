@@ -216,6 +216,15 @@
     font-size: 17px; padding: 7px 14px; border-radius: 10px; pointer-events: none;
     font-variant-numeric: tabular-nums;
   }
+  .restart {
+    position: absolute; right: 12px;
+    top: calc(52px + env(safe-area-inset-top, 0px));
+    z-index: 5; border: 0; border-radius: 99px;
+    background: rgba(12,28,46,.55); color: #f4f7fa;
+    font: inherit; font-size: 12px; font-weight: 700;
+    padding: 8px 14px; cursor: pointer; -webkit-backdrop-filter: blur(4px);
+  }
+  .restart:active { background: rgba(12,28,46,.8); }
   .nowebgl {
     position: absolute; inset: 0; display: grid; place-items: center;
     padding: 24px; text-align: center; background: var(--ground); color: var(--ink);
@@ -249,6 +258,7 @@
   </div>
   <div class="rush" id="rush"></div>
   <div class="fuelbar" id="fuelBar" hidden><i id="fuelFill"></i></div>
+  <button class="restart" id="restart" hidden>Neu starten</button>
   <div class="banner" id="banner"><b id="bTitle"></b><span id="bSub"></span></div>
   <div class="sheet" id="sheet" hidden></div>
 </div>
@@ -259,16 +269,16 @@
 
   // ---------- Konstanten ----------
   var PPM = 2.2;            // Pixel pro Spielmeter
-  var G = 0.01071104;       // Schwerkraft (Zeit gestreckt, Bahnen unverändert)
-  var AIR = 0.999859902;        // Luftwiderstand pro Schritt
+  var G = 0.0211815;       // Schwerkraft (Zeit gestreckt, Bahnen unverändert)
+  var AIR = 0.999802993;        // Luftwiderstand pro Schritt
   var STEP = 1000 / 60;
   var HALFW = 220;          // halbe Weltbreite in Metern           // halbe Pistenbreite in Metern
-  var STEER = 0.0038912;     // seitliche Beschleunigung
-  var VZMAX = 0.0864;        // seitliches Tempo
-  var VMAX = 1.2467;         // Tempolimit ~34 m/s, mit Schub-Ausbau etwas mehr
-  var VSTOP = 0.11;          // darunter ist Schluss (~3 m/s)
+  var STEER = 0.007695;     // seitliche Beschleunigung
+  var VZMAX = 0.1215;        // seitliches Tempo
+  var VMAX = 1.7531719;         // Tempolimit ~34 m/s, mit Schub-Ausbau etwas mehr
+  var VSTOP = 0.1546875;          // darunter ist Schluss (~3 m/s)
   var PITCH_V = G * 0.95;    // Steigen und Sinken durch Neigen
-  var PITCH_H = 0.0069;      // Tempogewinn beim Abtauchen
+  var PITCH_H = 0.01364502;      // Tempogewinn beim Abtauchen
   var DIVE_CAP = 0.35;       // so viel ueber dem Limit darf ein Sturzflug kurz
   var LIFT_CAP = G * 0.92;   // Auftrieb bleibt immer unter der Schwerkraft
   var MAX_M = 7800;
@@ -445,7 +455,7 @@
     var t = Math.sin(m / 95 + z / 19) + Math.sin(m / 41 - z / 11) * 0.65 + Math.sin(z / 31) * 0.4;
     return t > 0.75 ? 0 : t > -0.55 ? 1 : 2;
   }
-  var FRIC = [0.99968309, 0.99927945, 0.99769034];  // Eis gleitet, Schotter mittel, Wiese bremst
+  var FRIC = [0.99955437, 0.99898688, 0.99675357];  // Eis gleitet, Schotter mittel, Wiese bremst
   function frictionAt(m, z) { return FRIC[surface(m, z)]; }
 
   // ---------- Zustand ----------
@@ -464,6 +474,7 @@
     aimDir: document.getElementById("aimDir"),
     aimText: document.getElementById("aimText"),
     aimLabel: document.getElementById("aimLabel"),
+    restart: document.getElementById("restart"),
     rush: document.getElementById("rush")
   };
   var W = 0, H = 0, DPR = 1;
@@ -502,22 +513,23 @@
     S.airTime = 0; S.slideTime = 0; S.spin = 0; S.lastTree = 0;
     S.pitch = 0;
     S.newGoals = []; S.newSecrets = [];
-    S.fuelMax = 550 + lv("sprit") * 159;
+    S.fuelMax = 391 + lv("sprit") * 113;
     S.fuel = S.fuelMax;
     objCache = {};
     el.fuelBar.hidden = false;
     el.aimBar.hidden = false;
+    el.restart.hidden = false;
     document.querySelector(".hud").style.opacity = "1";
     updateHud();
     hideSheet();
   }
 
   function launch() {
-    var v0 = (1.2224 + lv("anlauf") * 0.1408) * (0.55 + 0.45 * S.power);
+    var v0 = (1.719 + lv("anlauf") * 0.198) * (0.55 + 0.45 * S.power);
     var a = (6 + 20 * S.angle) * Math.PI / 180;
     S.vx = Math.cos(a) * v0;
     S.vy = -Math.sin(a) * v0;
-    S.vz = (S.side || 0) * S.power * 0.0832;   // seitlicher Anteil aus der Zwille
+    S.vz = (S.side || 0) * S.power * 0.117;   // seitlicher Anteil aus der Zwille
     S.phase = "fly";
     puff(18); S.shake = 0.3;
   }
@@ -586,6 +598,14 @@
     S.pitch = 0;
   }
 
+  // Neu starten bricht den Lauf ab, ohne ihn zu werten - gesammelte Muenzen
+  // dieses Laufs verfallen, der gespeicherte Stand bleibt unberuehrt.
+  el.restart.addEventListener("click", function (e) {
+    e.stopPropagation();
+    aim.on = false; S.held = false; S.boosting = false; S.steer = 0; S.pitch = 0;
+    startRun();
+  });
+
   el.c.addEventListener("pointerdown", onDown);
   el.c.addEventListener("pointermove", onMove);
   el.c.addEventListener("pointerup", onUp);
@@ -627,7 +647,7 @@
     if (S.phase === "fly") {
       S.airTime++;
       if (S.boosting && S.fuel > 0) {
-        var p = (1 + lv("schub") * 0.2) * 0.00339968;
+        var p = (1 + lv("schub") * 0.2) * 0.006723;
         S.vx += p * 0.86; S.vy -= p * 0.5;
         S.fuel -= 1;
         if (S.t % 3 === 0) puff(2, "schub");
@@ -636,7 +656,7 @@
       // Die Fluegel geben mehr Ruderwirkung, nicht mehr Endtempo.
       var auth = 1 + lv("fluegel") * 0.15;
       var lift = Math.min(G * (0.30 + lv("fluegel") * 0.05),
-                          Math.max(0, S.vx) * (0.00288 + lv("fluegel") * 0.000704));
+                          Math.max(0, S.vx) * (0.00405 + lv("fluegel") * 0.00099));
       if (S.pitch < 0) {                       // Nase runter: Hoehe wird zu Tempo
         S.vy += -S.pitch * PITCH_V * auth;
         S.vx += -S.pitch * PITCH_H * auth;
@@ -654,17 +674,17 @@
       // Nur waehrend des Sturzflugs darf das Limit kurz ueberschritten werden.
       // Sobald die Nase wieder hoch geht, wird sofort gekappt - so laesst sich
       // kein Tempo ansparen und nichts schaukelt sich auf.
-      var vcap = (VMAX + lv("schub") * 0.044) * (1 + DIVE_CAP * Math.max(0, -S.pitch));
+      var vcap = (VMAX + lv("schub") * 0.061875) * (1 + DIVE_CAP * Math.max(0, -S.pitch));
       if (S.vx > vcap) S.vx = vcap;
       S.x += S.vx; S.y += S.vy;
-      S.spin += S.vx * 0.0375;
+      S.spin += S.vx * 0.052734375;
 
       var gy = groundY(S.x / PPM);
       if (S.y >= gy) {
         S.y = gy;
         var sl = slopeAt(S.x / PPM);
         var impact = S.vy - sl * S.vx;
-        if (impact > 1.50) {                        // sehr steil aufgesetzt: Stoß
+        if (impact > 2.109375) {                        // sehr steil aufgesetzt: Stoß
           S.vx *= 0.8; S.vy = 0;
           puff(16, "hit"); S.shake = 0.5;
         } else {                                   // sonst geht es direkt ins Rutschen
@@ -677,18 +697,18 @@
       S.slideTime++;
       var mNow = S.x / PPM;
       var sl2 = slopeAt(mNow);
-      S.vx += -sl2 * 0.00499712;                      // bergab beschleunigt
+      S.vx += -sl2 * 0.009882;                      // bergab beschleunigt
       var f = frictionAt(mNow, S.z);
       f = 1 - (1 - f) * (1 - lv("kufen") * 0.035) * ring().fric;
       S.vx *= f;
-      var vcap2 = VMAX + lv("schub") * 0.044;
+      var vcap2 = VMAX + lv("schub") * 0.061875;
       if (S.vx > vcap2) S.vx = vcap2;
       if (S.vx < VSTOP) { endRun(); return; }
       S.x += S.vx;
       S.y = groundY(S.x / PPM);
       // Staub nach Tempo und Untergrund
       var sp = Math.abs(S.vx);
-      if (sp > 0.192 && (S.t % (sp > 0.96 ? 1 : 2)) === 0) {
+      if (sp > 0.27 && (S.t % (sp > 1.35 ? 1 : 2)) === 0) {
         var srf = surface(mNow, S.z);
         puff(srf === 0 ? 2 : srf === 1 ? 3 : 4);
       }
@@ -697,7 +717,7 @@
     // Seitlich lenken: frei über die ganze Breite
     var acc = STEER * (1 + lv("lenk") * 0.22) * (S.phase === "fly" ? 0.55 : 1);
     S.vz += S.steer * acc;
-    S.vz *= (S.phase === "fly" ? 0.99936 : 0.98039);
+    S.vz *= (S.phase === "fly" ? 0.99910012 : 0.97253371);
     var vmax = VZMAX * (1 + lv("lenk") * 0.18);
     if (S.vz > vmax) S.vz = vmax;
     if (S.vz < -vmax) S.vz = -vmax;
@@ -775,7 +795,7 @@
       } else if (o.type === "ramp") {
         o.gone = true;
         if (S.phase === "slide") {
-          var jump = (o.big ? 0.672 : 0.4384) * ringJump();
+          var jump = (o.big ? 0.945 : 0.6165) * ringJump();
           S.vy = -jump; S.vx *= o.big ? 1.38 : 1.22;
           S.phase = "fly";
           puff(14); S.shake = 0.25;
@@ -838,6 +858,7 @@
     el.fuelBar.hidden = true;
     el.aimBar.hidden = true;
     el.aimLabel.hidden = true;
+    el.restart.hidden = true;
     var distCoins = Math.round(S.m / 11 * (1 + lv("kappe") * 0.18));
     var total = S.coins + distCoins;
     save.coins += total;
@@ -877,18 +898,7 @@
       h.push('<div class="goal"><div class="row"><span class="name">Ganz Kassel geschafft</span></div></div>');
     }
 
-    h.push('<h2>Werkstatt</h2><div class="shop">');
-    UPGRADES.forEach(function (u) {
-      var lim = maxOf(u), l = lv(u.id), max = l >= lim, p = priceOf(u);
-      var can = !max && save.coins >= p;
-      h.push('<button class="up" data-u="' + u.id + '"' + (can ? "" : " disabled") + '>' +
-             '<span><span class="t">' + (u.ring ? ringName() : u.name) + '</span><span class="d">' + (u.ring ? (l >= lim ? u.desc : 'nächste Stufe: ' + RINGS[l + 1].name) : u.desc + ' · ' + u.effect) + '</span>' +
-             '<span class="pips">' + Array.from({ length: lim }, function (_, i) {
-               return '<u class="' + (i < l ? "on" : "") + '"></u>';
-             }).join("") + '</span></span>' +
-             '<span class="price' + (max ? " max" : "") + '">' + (max ? "voll" : p) + '</span></button>');
-    });
-    h.push('</div>');
+    h.push(shopHtml());
 
     h.push('<div class="hint">Zwille nach hinten ziehen und loslassen. In der Luft tippen und halten gibt Schub, solange der Balken unten reicht. Dabei den Finger nach oben oder unten ziehen: unten geht die Nase runter, das gibt Tempo, oben zieht er die Nase hoch und gleitet weiter. Beim Rutschen links oder rechts antippen, um die Spur zu wechseln \u2013 Rampen bringen dich wieder hoch.</div>');
     h.push(wardrobeHtml());
@@ -901,20 +911,41 @@
     el.sheet.scrollTop = 0;
     el.coins.textContent = save.coins;
 
+    wireShop(function () { showSheet(distCoins, total); });
+    wireWardrobe(function () { showSheet(distCoins, total); });
+    document.getElementById("again").addEventListener("click", startRun);
+  }
+
+  function hideSheet() { el.sheet.hidden = true; }
+
+  // Werkstatt: steht nach jedem Lauf UND im Startmenue, damit die Ausbauten
+  // nicht nur direkt nach dem Landen erreichbar sind.
+  function shopHtml() {
+    var h = ['<h2>Werkstatt</h2><div class="shop">'];
+    UPGRADES.forEach(function (u) {
+      var lim = maxOf(u), l = lv(u.id), max = l >= lim, p = priceOf(u);
+      var can = !max && save.coins >= p;
+      h.push('<button class="up" data-u="' + u.id + '"' + (can ? "" : " disabled") + '>' +
+             '<span><span class="t">' + (u.ring ? ringName() : u.name) + '</span><span class="d">' + (u.ring ? (l >= lim ? u.desc : 'nächste Stufe: ' + RINGS[l + 1].name) : u.desc + ' · ' + u.effect) + '</span>' +
+             '<span class="pips">' + Array.from({ length: lim }, function (_, i) {
+               return '<u class="' + (i < l ? "on" : "") + '"></u>';
+             }).join("") + '</span></span>' +
+             '<span class="price' + (max ? " max" : "") + '">' + (max ? "voll" : p) + '</span></button>');
+    });
+    h.push('</div>');
+    return h.join("");
+  }
+  function wireShop(redraw) {
     el.sheet.querySelectorAll("[data-u]").forEach(function (b) {
       b.addEventListener("click", function () {
         var u = UPGRADES.filter(function (x) { return x.id === b.dataset.u; })[0];
         var p = priceOf(u);
         if (save.coins < p || lv(u.id) >= maxOf(u)) return;
         save.coins -= p; save.lv[u.id]++; store();
-        showSheet(distCoins, total);
+        redraw();
       });
     });
-    wireWardrobe(function () { showSheet(distCoins, total); });
-    document.getElementById("again").addEventListener("click", startRun);
   }
-
-  function hideSheet() { el.sheet.hidden = true; }
 
   function wardrobeHtml() {
     var h = [];
@@ -967,14 +998,17 @@
     h.push('<div class="menutop"><h1>Antons Weitflug</h1>' +
            (save.best ? '<span>Bestweite ' + save.best + ' m</span>' : '<span>vom Herkules bis zur Fulda</span>') +
            '</div>');
-    h.push(wardrobeHtml());
     h.push('<div class="row"><span class="coinbig">' + save.coins + '</span><span class="sub">Münzen</span></div>');
+    h.push(shopHtml());
+    h.push(wardrobeHtml());
     h.push('<div class="sticky"><button class="btn" id="go">Los geht\'s</button></div>');
     el.sheet.className = "sheet menu";
+    el.restart.hidden = true;
     document.querySelector(".hud").style.opacity = "0";
     el.sheet.innerHTML = h.join("");
     el.sheet.hidden = false;
     el.sheet.scrollTop = 0;
+    wireShop(showMenu);
     wireWardrobe(showMenu);
     document.getElementById("go").addEventListener("click", startRun);
   }
@@ -2187,19 +2221,19 @@
       arcDots.forEach(function (d) { d.visible = false; });
       return;
     }
-    var v0 = (1.2224 + lv("anlauf") * 0.1408) * (0.55 + 0.45 * aim.power);
+    var v0 = (1.719 + lv("anlauf") * 0.198) * (0.55 + 0.45 * aim.power);
     var a = (6 + 20 * aim.steep) * Math.PI / 180;
     var vx = Math.cos(a) * v0, vy = -Math.sin(a) * v0;
-    var vz = (aim.side || 0) * aim.power * 0.0832;
+    var vz = (aim.side || 0) * aim.power * 0.117;
     // Von der echten Abschussstelle rechnen, nicht von der tief gezogenen Figur
     var x = mNow * PPM, y = groundY(mNow) - 14, z = anton.position.z;
     var land = null, lz = z, di = 0;
-    var acap = VMAX + lv("schub") * 0.044;
+    var acap = VMAX + lv("schub") * 0.061875;
     for (var i = 0; i < 9000; i++) {
-      vy += G - Math.min(G * (0.30 + lv("fluegel") * 0.05), Math.max(0, vx) * (0.00288 + lv("fluegel") * 0.000704)); vx *= AIR; vy *= AIR;
+      vy += G - Math.min(G * (0.30 + lv("fluegel") * 0.05), Math.max(0, vx) * (0.00405 + lv("fluegel") * 0.00099)); vx *= AIR; vy *= AIR;
       if (vx > acap) vx = acap;
       x += vx; y += vy;
-      vz *= 0.99936; z += vz;
+      vz *= 0.99910012; z += vz;
       if (z < -HALFW) { z = -HALFW; vz = 0; }
       if (z > HALFW) { z = HALFW; vz = 0; }
       var mm = x / PPM;
