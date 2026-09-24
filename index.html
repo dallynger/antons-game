@@ -1617,46 +1617,59 @@
     pools[name] = { arr: arr, used: 0, im: im, farbe: !!opts.color };
     instPools.push(pools[name]);
   }
-  // Instanzierte Gruppe: ein Baum besteht aus mehreren Teilen. Statt je Baum
-  // vier bis sechs Zeichenanweisungen gibt es je TEIL eine, ueber alle Baeume
-  // hinweg. Die Aufrufstellen merken nichts davon - sie bekommen weiterhin ein
-  // Objekt mit position/rotation/scale und userData.parts zum Einfaerben.
+  // Instanzierte Gruppe: ein Objekt besteht aus mehreren Teilen. Statt je
+  // Objekt mehrere Zeichenanweisungen gibt es je TEIL eine, ueber alle Objekte
+  // hinweg. Jedes Teil ist ein eigenes Hilfsobjekt mit eigener Lage und Groesse,
+  // damit Aufrufstellen wie house() ihre Teile weiterhin einzeln skalieren
+  // koennen. Nach aussen verhaelt sich alles wie die alte Gruppe.
   var instGroups = [];
   function poolInstGroup(name, n, parts) {
-    var ims = [], locals = [], tintIdx = [];
-    parts.forEach(function (pt, k) {
-      var m = pt.tint ? pt.mat : pt.mat;
-      var im = new TH.InstancedMesh(pt.geo, m, n);
+    var ims = [];
+    parts.forEach(function (pt) {
+      var im = new TH.InstancedMesh(pt.geo, pt.mat, n);
       im.instanceMatrix.setUsage(TH.DynamicDrawUsage);
       im.castShadow = !!pt.cast;
+      im.receiveShadow = !!pt.receive;
+      // Die Huelle wird nur aus der Geometrie berechnet, nicht aus den
+      // Instanzpositionen - ohne das verschwindet alles am Bildrand.
       im.frustumCulled = false;
+      // Farbpuffer ausdruecklich in voller Groesse: setColorAt() legt ihn sonst
+      // in der Groesse von count an, und count ist beim Bauen 0.
       if (pt.tint) im.instanceColor = new TH.InstancedBufferAttribute(new Float32Array(n * 3).fill(1), 3);
       im.count = 0;
       scene.add(im);
       ims.push(im);
-      var lm = new TH.Matrix4();
-      lm.compose(new TH.Vector3(pt.px || 0, pt.py || 0, pt.pz || 0),
-                 new TH.Quaternion(),
-                 new TH.Vector3(pt.sx === undefined ? 1 : pt.sx,
-                                pt.sy === undefined ? 1 : pt.sy,
-                                pt.sz === undefined ? 1 : pt.sz));
-      locals.push(lm);
-      if (pt.tint) tintIdx.push(k);
     });
     var arr = [];
     for (var i = 0; i < n; i++) {
       var o = new TH.Object3D();
       o.matrixAutoUpdate = false;
-      o.userData.parts = tintIdx.map(function (k) {
-        return { material: { color: new TH.Color(parts[k].col) } };
+      o.teile = parts.map(function (pt) {
+        var t = new TH.Object3D();
+        t.matrixAutoUpdate = false;
+        if (pt.tint) t.material = { color: new TH.Color(pt.col) };
+        return t;
+      });
+      o.userData.parts = [];
+      parts.forEach(function (pt, k) {
+        if (pt.key) o.userData[pt.key] = o.teile[k];
+        if (pt.tint) o.userData.parts.push(o.teile[k]);
       });
       arr.push(o);
     }
-    var p = { arr: arr, used: 0, gruppe: { ims: ims, locals: locals, tintIdx: tintIdx, parts: parts } };
-    // Nicht jede Aufrufstelle faerbt ein. Beim Herausgeben die Standardfarbe
-    // zuruecksetzen, sonst behaelt ein Baum die Farbe seines Vorgaengers.
+    var p = { arr: arr, used: 0, gruppe: { ims: ims, parts: parts } };
+    // Nicht jede Aufrufstelle setzt alles. Beim Herausgeben die Standardwerte
+    // zuruecksetzen, sonst erbt ein Objekt Lage und Farbe seines Vorgaengers.
     p.reset = function (o2) {
-      for (var t = 0; t < tintIdx.length; t++) o2.userData.parts[t].material.color.setHex(parts[tintIdx[t]].col);
+      for (var k = 0; k < parts.length; k++) {
+        var pt = parts[k], t = o2.teile[k];
+        t.position.set(pt.px || 0, pt.py || 0, pt.pz || 0);
+        t.scale.set(pt.sx === undefined ? 1 : pt.sx,
+                    pt.sy === undefined ? 1 : pt.sy,
+                    pt.sz === undefined ? 1 : pt.sz);
+        t.rotation.set(0, 0, 0);
+        if (pt.tint) t.material.color.setHex(pt.col);
+      }
     };
     pools[name] = p;
     instGroups.push(p);
@@ -1669,18 +1682,17 @@
         var o = p.arr[i];
         o.updateMatrix();
         for (var k = 0; k < G.ims.length; k++) {
-          _tmpM.multiplyMatrices(o.matrix, G.locals[k]);
+          var t = o.teile[k];
+          t.updateMatrix();
+          _tmpM.multiplyMatrices(o.matrix, t.matrix);
           G.ims[k].setMatrixAt(i, _tmpM);
+          if (G.parts[k].tint) G.ims[k].setColorAt(i, t.material.color);
         }
-      }
-      for (var t = 0; t < G.tintIdx.length; t++) {
-        var im = G.ims[G.tintIdx[t]];
-        for (var j = 0; j < p.used; j++) im.setColorAt(j, p.arr[j].userData.parts[t].material.color);
-        if (im.instanceColor) im.instanceColor.needsUpdate = true;
       }
       for (var k2 = 0; k2 < G.ims.length; k2++) {
         G.ims[k2].count = p.used;
         G.ims[k2].instanceMatrix.needsUpdate = true;
+        if (G.parts[k2].tint && G.ims[k2].instanceColor) G.ims[k2].instanceColor.needsUpdate = true;
       }
     }
   }
@@ -1888,15 +1900,14 @@
 
     // Stadthäuser: Block plus Dach
     var faceTex = facadeTexture();
-    pool("bldg", 170, function () {
-      var g = new TH.Group();
-      var b = new TH.Mesh(new TH.BoxGeometry(1, 1, 1),
-        new TH.MeshLambertMaterial({ color: 0xd8dfe8, map: faceTex }));
-      b.castShadow = true; b.receiveShadow = true; g.add(b); g.userData.b = b;
-      var r = new TH.Mesh(new TH.BoxGeometry(1, 1, 1), mat(0x9c5343));
-      g.add(r); g.userData.r = r;
-      return g;
-    });
+    // Haeuser instanziert. Die Grundfarbe des Materials ist weiss, weil die
+    // Fassadenfarbe je Haus ueber instanceColor kommt und damit multipliziert
+    // wird - sonst faerbte sich jedes Haus zweimal ein.
+    poolInstGroup("bldg", 460, [
+      { geo: boxG, mat: new TH.MeshLambertMaterial({ color: 0xffffff, map: faceTex, flatShading: true }),
+        key: "b", col: 0xd8dfe8, tint: true, cast: true, receive: true },
+      { geo: boxG, mat: mat(0x9c5343), key: "r" }
+    ]);
 
     // Laternen entlang der Straßen
     pool("lamp", 70, function () {
@@ -2506,19 +2517,29 @@
 
     } else if (zo === "allee" || zo === "westen" || zo === "innenstadt") {
       var big = zo === "innenstadt";
-      if (h < (SPARSAM ? 0.5 : 0.64)) {
+      // Haeuser halten Abstand zur Piste. Das wurde bisher nirgends geprueft;
+      // mit der hoeheren Dichte standen sie mitten auf der Fahrbahn.
+      var frei = pathDist(tx, tz) > PATH_W + 7;
+      if (frei && h < (SPARSAM ? 0.5 : 0.76)) {
         house(tx, tz,
               7 + h2 * 6, 8 + h * 7,
               (big ? 12 : 8) + h3 * (big ? 12 : 8), 1.5,
               [0xdae1ea, 0xd2dae5, 0xe2e7ee, 0xcbd5e0, 0xd9cfc6, 0xcfd9d4][Math.floor(h3 * 6)]);
-        // Hinterhaus versetzt dahinter: aus einer Reihe wird ein Viertel
-        if (!SPARSAM && h2 > 0.55) {
+        // Hinterhaeuser versetzt dahinter: aus einer Reihe wird ein Viertel.
+        // Seit die Haeuser instanziert sind, kostet jedes weitere fast nichts.
+        if (!SPARSAM && h2 > 0.35 && pathDist(tx + 5.5, tz + (h3 < 0.5 ? -11 : 11)) > PATH_W + 7) {
           house(tx + 5.5, tz + (h3 < 0.5 ? -11 : 11),
                 6 + h3 * 5, 6 + h2 * 6,
                 (big ? 10 : 7) + h * 7, 1.3,
                 [0xd2dae5, 0xe2e7ee, 0xd9cfc6][Math.floor(h * 3)]);
         }
-      } else if (h < (SPARSAM ? 0.62 : 0.80)) {
+        if (!SPARSAM && h3 > 0.5 && pathDist(tx - 6.5, tz + (h2 < 0.5 ? -19 : 19)) > PATH_W + 7) {
+          house(tx - 6.5, tz + (h2 < 0.5 ? -19 : 19),
+                5.5 + h2 * 5, 5 + h3 * 6,
+                (big ? 9 : 6) + h2 * 8, 1.2,
+                [0xcbd5e0, 0xdae1ea, 0xcfd9d4][Math.floor(h2 * 3)]);
+        }
+      } else if (frei && h < (SPARSAM ? 0.62 : 0.80)) {
         var ts = take(h3 < 0.62 ? "tree" : "tree2");
         if (ts) {
           ts.position.set(tx, gy, tz); ts.scale.setScalar(0.85 + h3 * 0.5);
