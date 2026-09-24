@@ -9,16 +9,15 @@ Wilhelmshöher Allee, Goetheanlage, Innenstadt, Orangerie, über die Fulda.
 
 **https://dallynger.github.io/antons-game/**
 
-| Datei | Was |
-|---|---|
-| `index.html` | die volle Fassung mit 3D-Grafik (Three.js, 680 KB, alles inline) |
-| `leicht.html` | schlanke Fassung ohne 3D-Bibliothek, falls das iPhone zäh läuft |
+Das ganze Spiel steckt in `index.html` — eine einzige Datei mit 3D-Grafik
+(Three.js inline), ohne Bauwerkzeug und ohne Server.
 
-Die schlanke Fassung liegt unter `https://dallynger.github.io/antons-game/leicht.html`.
+## Wer spielt?
 
-Beide Dateien teilen sich denselben Spielstand (`localStorage`, Schlüssel
-`anton-weitflug-v1`), weil sie unter derselben Adresse liegen — man kann also
-zwischen den Fassungen wechseln, ohne Münzen zu verlieren.
+Im Startmenü steht oben eine Namensliste. Jeder Name hat seinen **eigenen**
+Spielstand: eigene Münzen, Ausbauten, Trikots und Bestweite. Antons Stand
+liegt unter `anton-weitflug-v1`, weitere Namen bekommen den Namen angehängt.
+Besuch kann also spielen, ohne Antons Rekord zu überschreiben.
 
 ## GitHub Pages einschalten
 
@@ -50,6 +49,8 @@ Einmalig, danach ist die Adresse dauerhaft erreichbar:
   Sichtweite, Schatten und Pixelverhältnis herunter. Mit `?voll` an der Adresse
   bleibt die volle Fassung erzwungen:
   `https://dallynger.github.io/antons-game/?voll`
+- Zum Prüfen: `?debug` legt Messwerte offen, `?debug&at=3600` startet weiter
+  hinten auf der Strecke. Ohne `?debug` wirkungslos.
 
 ## Spielstand zurücksetzen
 

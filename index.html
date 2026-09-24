@@ -158,6 +158,26 @@
   .price s { font-size: 10.5px; color: #7b8ea3; text-decoration: none; letter-spacing: .04em; }
   .price.max b { color: var(--ink-dim); }
   .price.short b { color: #7b8ea3; }
+  .who { display: flex; flex-wrap: wrap; gap: 6px; }
+  .who button {
+    position: relative; border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink); border-radius: 99px; padding: 8px 14px;
+    font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .who button[aria-pressed="true"] {
+    background: var(--jersey); color: #06201f; border-color: var(--jersey);
+  }
+  .who button.neu { font-weight: 400; color: var(--ink-dim); }
+  .who .weg {
+    border: 0; background: none; color: var(--ink-dim);
+    padding: 8px 6px; font-size: 15px; line-height: 1; cursor: pointer;
+  }
+  .who .paar { display: flex; align-items: center; gap: 0;
+    border: 1px solid var(--line); border-radius: 99px; background: var(--panel); }
+  .who .paar button { border: 0; background: none; }
+  .who .paar button[aria-pressed="true"] {
+    background: var(--jersey); color: #06201f; border-radius: 99px;
+  }
   .purse {
     display: flex; align-items: center; justify-content: space-between;
     background: var(--panel-2); border-radius: 12px; padding: 9px 13px;
@@ -410,12 +430,34 @@
 
   // ---------- Spielstand ----------
   var SAVE = "anton-weitflug-v1";
+  var WER = "anton-weitflug-namen";
+
+  // Jeder Name hat seinen eigenen Spielstand. Antons liegt weiter unter dem
+  // alten Schluessel, damit sein bisheriger Fortschritt erhalten bleibt;
+  // alle weiteren bekommen den Namen angehaengt.
+  var namen = { liste: ["Anton"], aktiv: "Anton" };
+  function saveKey(n) { return n === "Anton" ? SAVE : SAVE + "__" + n; }
+  function ladeNamen() {
+    try {
+      var raw = localStorage.getItem(WER);
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      if (!d || !Array.isArray(d.liste) || !d.liste.length) return;
+      namen.liste = d.liste.filter(function (x) { return typeof x === "string" && x.length; }).slice(0, 6);
+      if (namen.liste.indexOf("Anton") < 0) namen.liste.unshift("Anton");
+      namen.aktiv = namen.liste.indexOf(d.aktiv) >= 0 ? d.aktiv : namen.liste[0];
+    } catch (e) {}
+  }
+  function speichereNamen() {
+    try { localStorage.setItem(WER, JSON.stringify(namen)); } catch (e) {}
+  }
+  ladeNamen();
   var save = { coins: 0, best: 0, lv: {}, goals: {}, seen: {}, runs: 0, shirt: "lauf", hat: "keine", owned: { "shirt:lauf": 1, "hat:keine": 1 } };
   UPGRADES.forEach(function (u) { save.lv[u.id] = 0; });
 
   function load() {
     try {
-      var raw = localStorage.getItem(SAVE);
+      var raw = localStorage.getItem(saveKey(namen.aktiv));
       if (!raw) return;
       var d = JSON.parse(raw);
       if (!d || typeof d !== "object") return;
@@ -435,9 +477,25 @@
     } catch (e) { /* privates Fenster o.ä. – dann ohne Spielstand */ }
   }
   function store() {
-    try { localStorage.setItem(SAVE, JSON.stringify(save)); } catch (e) {}
+    try { localStorage.setItem(saveKey(namen.aktiv), JSON.stringify(save)); } catch (e) {}
   }
   load();
+
+  // Beim Wechsel wird der Stand vollstaendig neu aufgebaut, nicht nur
+  // ueberschrieben - sonst bleiben Felder des Vorgaengers stehen, die im
+  // neuen Stand fehlen.
+  function wechsleZu(n) {
+    if (namen.liste.indexOf(n) < 0) return;
+    store();
+    namen.aktiv = n;
+    speichereNamen();
+    save.coins = 0; save.best = 0; save.runs = 0;
+    save.goals = {}; save.seen = {};
+    save.shirt = "lauf"; save.hat = "keine";
+    save.owned = { "shirt:lauf": 1, "hat:keine": 1 };
+    UPGRADES.forEach(function (u) { save.lv[u.id] = 0; });
+    load();
+  }
 
   function lv(id) { return save.lv[id] || 0; }
   function priceOf(u) { return Math.round(u.base * Math.pow(1.62, lv(u.id))); }
@@ -983,6 +1041,64 @@
 
   function hideSheet() { el.sheet.hidden = true; }
 
+  // Namen werden vom Spieler eingegeben und landen im HTML - deshalb maskieren.
+  function esc(t) {
+    return String(t).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function whoHtml() {
+    var h = ['<h2>Wer spielt?</h2><div class="who">'];
+    namen.liste.forEach(function (n) {
+      var an = n === namen.aktiv;
+      if (n === "Anton") {
+        h.push('<button data-wer="' + esc(n) + '" aria-pressed="' + an + '">' + esc(n) + '</button>');
+      } else {
+        h.push('<span class="paar">' +
+               '<button data-wer="' + esc(n) + '" aria-pressed="' + an + '">' + esc(n) + '</button>' +
+               '<button class="weg" data-weg="' + esc(n) + '" title="Namen löschen">\u00d7</button></span>');
+      }
+    });
+    if (namen.liste.length < 6) h.push('<button class="neu" id="werNeu">+ Name</button>');
+    h.push('</div>');
+    return h.join("");
+  }
+
+  function wireWho() {
+    el.sheet.querySelectorAll("[data-wer]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.dataset.wer === namen.aktiv) return;
+        wechsleZu(b.dataset.wer);
+        showMenu();
+      });
+    });
+    el.sheet.querySelectorAll("[data-weg]").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var n = b.dataset.weg;
+        if (!window.confirm("Spielstand von " + n + " wirklich löschen?")) return;
+        try { localStorage.removeItem(saveKey(n)); } catch (err) {}
+        namen.liste = namen.liste.filter(function (x) { return x !== n; });
+        if (namen.aktiv === n) { namen.aktiv = "Anton"; }
+        speichereNamen();
+        wechsleZu(namen.aktiv);
+        showMenu();
+      });
+    });
+    var nb = document.getElementById("werNeu");
+    if (nb) nb.addEventListener("click", function () {
+      var n = window.prompt("Neuer Name:");
+      if (n === null) return;
+      n = n.trim().slice(0, 12);
+      if (!n || namen.liste.indexOf(n) >= 0) return;
+      namen.liste.push(n);
+      speichereNamen();
+      wechsleZu(n);
+      showMenu();
+    });
+  }
+
   // Werkstatt: steht nach jedem Lauf UND im Startmenue, damit die Ausbauten
   // nicht nur direkt nach dem Landen erreichbar sind.
   function shopHtml() {
@@ -1074,8 +1190,10 @@
   function showMenu() {
     var h = [];
     h.push('<div class="menutop" style="margin-top:auto"><h1>Antons Weitflug</h1>' +
-           (save.best ? '<span>Bestweite ' + save.best + ' m</span>' : '<span>vom Herkules bis zur Fulda</span>') +
+           '<span>' + esc(namen.aktiv) +
+           (save.best ? ' · Bestweite ' + save.best + ' m' : ' · vom Herkules bis zur Fulda') + '</span>' +
            '</div>');
+    h.push(whoHtml());
     h.push(shopHtml());
     h.push(wardrobeHtml());
     h.push('<div class="sticky"><button class="btn" id="go">Los geht\'s</button></div>');
@@ -1085,6 +1203,7 @@
     el.sheet.innerHTML = h.join("");
     el.sheet.hidden = false;
     el.sheet.scrollTop = 0;
+    wireWho();
     wireShop(showMenu);
     wireWardrobe(showMenu);
     document.getElementById("go").addEventListener("click", startRun);
@@ -1761,7 +1880,8 @@
     window.__dbg = { pools: pools, miss: poolMiss, info: function () { return renderer.info; },
                      state: function () { return S; }, solids: function () { return solidsN; },
                      renderer: function () { return renderer; }, sun: function () { return sun; },
-                     scene: function () { return scene; }, terrain: function () { return terrain; } };
+                     scene: function () { return scene; }, terrain: function () { return terrain; },
+                     camera: function () { return camera; } };
   }
   function hideRest() {
     for (var k in pools) {
@@ -2047,6 +2167,17 @@
     camera.updateProjectionMatrix();
   }
 
+  // Die Blickfeldwerte im Spiel sind SENKRECHT gemeint. Auf einem breiten
+  // Fenster wird daraus waagerecht schnell ueber 90 Grad, und alles am
+  // Bildrand zieht sich in die Laenge. Deshalb laeuft jeder Wunschwert hier
+  // durch und wird so weit gesenkt, dass waagerecht 78 Grad nicht ueberschritten
+  // werden. Im Hochformat aendert das nichts.
+  function fovFit(want) {
+    var asp = camera.aspect || 1;
+    var vMax = 2 * Math.atan(Math.tan(78 * Math.PI / 360) / asp) * 180 / Math.PI;
+    return Math.min(want, vMax);
+  }
+
   // ---------- Bild bauen ----------
   var camPos = { x: -16, y: 6, z: 0 }, camLook = { x: 0, y: 0, z: 0 };
 
@@ -2100,7 +2231,7 @@
     }
 
     var speed = Math.abs(S.vx);
-    var wantFov = aiming ? 74 : 53 + Math.min(13, speed * 7.5);   // schneller = weiterer Blick
+    var wantFov = fovFit(aiming ? 74 : 53 + Math.min(13, speed * 7.5));  // schneller = weiterer Blick
     if (Math.abs(camera.fov - wantFov) > 0.25) {
       camera.fov += (wantFov - camera.fov) * (aiming ? 1 : 0.1);
       camera.updateProjectionMatrix();
@@ -2168,7 +2299,7 @@
       if (blob) { blob.position.set(0, g0 + 0.06, 0); blob.scale.set(1, 1, 1); blob.material.opacity = 1; blob.visible = true; }
       camPos.x = 8.2; camPos.y = g0 + 2.55; camPos.z = 5.6;
       camLook.x = 0; camLook.y = g0 + 0.05; camLook.z = 0;
-      camera.fov = 38; camera.updateProjectionMatrix();
+      camera.fov = fovFit(38); camera.updateProjectionMatrix();
       camera.position.set(camPos.x, camPos.y, camPos.z);
       camera.lookAt(camLook.x, camLook.y, camLook.z);
       sun.position.set(camPos.x + 5, camPos.y + 9, camPos.z + 7);
@@ -2308,10 +2439,14 @@
     // Herkules am Start
     if (!herkules) {
       herkules = buildHerkules();
-      herkules.position.set(64, groundM(64) - 2, -13);
+      // Er stand bei z = -13 mit 36 m Grundflaeche, die Bahn ist dort aber nur
+      // 21 m breit - Anton rutschte mitten durch das Bauwerk. Jetzt steht er
+      // klar daneben.
+      herkules.position.set(64, groundM(64) - 2, -36);
       scene.add(herkules);
     }
     herkules.visible = camPos.x < 200;
+    addSolid(64, -36, 18, 40, 1);
 
     // Landschaft auf festem Weltraster: die Spalten liegen immer an derselben Stelle,
     // sonst wandern die Bäume bei jedem Bild in eine andere Zelle und flackern
