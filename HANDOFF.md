@@ -52,9 +52,8 @@ Ausreißer-Physik und ist entfernt.
    Stand von vor diesen Änderungen.
 2. **Reste beim Instancing**: Pistenstangen und Hütten laufen noch als Gruppen.
 3. **Grafik-Inhalt**, offen: Felsmodelle, lebendigere Stadt (fahrende
-   Straßenbahnen, Schaufenster, Kirchtürme), Anton selbst (flatternder Schal,
-   Schneefahne, Reaktion beim Aufprall), echtes Wetter (Schneetreiben,
-   Nebelbänke). Tageszeit und Baummodelle sind erledigt.
+   Straßenbahnen, Schaufenster, Kirchtürme), echtes Wetter (Schneetreiben,
+   Nebelbänke). Tageszeit, Baummodelle und Anton sind erledigt.
 
 Bewusst zurückgestellt: Töne, die Stadtabschnitte erreichbar machen.
 
@@ -160,6 +159,13 @@ Ohne sie läuft die Balance davon. Alle drei sind konstruktiv, nicht gestimmt.
 Three.js r128 als UMD, globales `THREE`. WebGLRenderer, Hemisphere- plus
 Directional-Light, PCFSoftShadowMap, sRGB, Nebel, Gelände als Buffergeometrie
 mit Vertexfarben, die der Kamera folgt.
+
+**Anton** trägt einen Schal aus sechs Gliedern hinter dem Nacken. Jedes hängt
+dem vorigen nach, dadurch läuft eine Welle durch; Stärke und Auslenkung hängen
+am Tempo. Er weht seitlich weg, weil die Kamera hinter Anton steht und er
+gerade nach hinten von ihm selbst verdeckt wäre. Bei einem Treffer zuckt Anton
+zusammen (`S.duck`, klingt mit 0.9 je Bild ab). Ab halbem Tempo kommt hinter
+dem Ring ein zweiter Staubschwung dazu, damit dort eine Fahne steht.
 
 **Fünf Baumarten**: Fichte, schlanke Tanne, runder Busch-Baum, kahler
 Laubbaum (die auffälligste Winter-Silhouette) und breite alte Fichte. Die

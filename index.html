@@ -635,7 +635,7 @@
     S.pitch = 0;
     S.newGoals = []; S.newSecrets = [];
     S.turbo = 0;
-    S.stallX = 0; S.stallT = 0;
+    S.stallX = 0; S.stallT = 0; S.duck = 0;
     S.fuelMax = 391 + lv("sprit") * 113;
     S.fuel = S.fuelMax;
     objCache = {};
@@ -843,10 +843,13 @@
       S.x += S.vx;
       S.y = groundY(S.x / PPM);
       // Staub nach Tempo und Untergrund
+      // Schneefahne: ab halbem Tempo kommt ein zweiter Schwung dazu, damit
+      // hinter dem Ring eine richtige Fahne steht statt einzelner Woelkchen.
       var sp = Math.abs(S.vx);
-      if (sp > 0.27 && (S.t % (sp > 1.35 ? 1 : 2)) === 0) {
+      if (sp > 0.27 && (S.t % (sp > 1.1 ? 1 : 2)) === 0) {
         var srf = surface(mNow, S.z);
         puff(srf === 0 ? 2 : srf === 1 ? 3 : 4);
+        if (sp > VMAX * 0.55) puff(srf === 0 ? 2 : 3);
       }
     }
 
@@ -888,6 +891,7 @@
       S.vx *= so.hart ? 0.42 : 0.62;
       if (S.phase === "fly" && so.hart) S.vy = Math.max(S.vy, 0.12);
       S.combo = 0; S.hits++;
+      S.duck = so.hart ? 0.85 : 0.6;
       puff(so.hart ? 20 : 14, "hit");
       S.shake = so.hart ? 0.8 : 0.55;
       break;
@@ -941,7 +945,7 @@
         banner("Vollgas!", "Blitz eingesammelt");
       } else if (o.type === "rock") {
         o.gone = true;
-        S.vx *= 0.72; S.combo = 0; S.hits++;
+        S.vx *= 0.72; S.combo = 0; S.hits++; S.duck = 0.55;
         puff(14, "hit"); S.shake = 0.7;
       }
     }
@@ -1739,6 +1743,23 @@
     anton.userData.hatBand = band;
     addBox(body, 0.09, 0.13, 0.54, 0xff6a2b, 0.24, 1.19, 0);       // verspiegelte Brille
     anton.add(body);
+    // Schal: eine Kette von Gliedern hinter dem Nacken. Jedes haengt dem
+    // vorigen nach, dadurch laeuft eine Welle durch - das macht das Tempo
+    // sichtbar, ohne dass man auf die Zahl oben links schauen muss.
+    var schal = [];
+    for (var sc = 0; sc < 6; sc++) {
+      // Laenge liegt in x, also in Flugrichtung - sonst stehen die Glieder
+      // quer und der Schal liest sich als Kette von Kloetzchen.
+      var gl = new TH.Mesh(
+        roundedBoxGeo(0.38 - sc * 0.022, 0.15 - sc * 0.008, 0.26 - sc * 0.022, 0.04),
+        mat(sc % 2 ? 0xff6a2b : 0xff8a45, false)
+      );
+      gl.castShadow = true;
+      body.add(gl);
+      schal.push(gl);
+    }
+    anton.userData.schal = schal;
+
     anton.userData.body = body;
 
     // Flügel am Ring, wachsen mit dem Upgrade
@@ -2491,6 +2512,35 @@
         blob.scale.set(sh, sh, 1);
         blob.material.opacity = sh;
         blob.visible = true;
+      }
+      // Schal: Welle nach hinten, Staerke aus dem Tempo. In der Luft steht er
+      // fast waagerecht, beim Rutschen liegt er tiefer.
+      var schal = anton.userData.schal;
+      if (schal) {
+        var tempo = Math.min(1, Math.abs(S.vx) / VMAX);
+        var luft = S.phase === "fly" ? 1 : 0.55;
+        for (var q = 0; q < schal.length; q++) {
+          var ph = S.t * (0.13 + tempo * 0.16) - q * 0.85;
+          var weit = 0.19 + q * 0.268;
+          schal[q].position.set(
+            -0.2 - weit * (0.55 + tempo * 0.45),
+            1.02 + Math.sin(ph) * 0.05 * q * luft + weit * 0.14 * (1 - tempo) - q * 0.02,
+            // Seitlich wegwehen: die Kamera steht hinter Anton, gerade nach
+            // hinten waere der Schal von ihm selbst verdeckt.
+            q * (0.085 + tempo * 0.06)
+              + Math.sin(ph * 0.8) * (0.035 + tempo * 0.07) * q
+              - S.vz * 2.4 * q * 0.22
+          );
+          schal[q].rotation.z = -0.25 - tempo * 0.5 + Math.sin(ph) * 0.22;
+          schal[q].rotation.y = Math.sin(ph * 0.8) * 0.3;
+        }
+      }
+      // Aufprall: kurz zusammenzucken, dann wieder aufrichten
+      if (S.duck > 0) S.duck *= 0.9;
+      var zuck = S.duck || 0;
+      if (anton.userData.body) {
+        anton.userData.body.rotation.z = 0.15 + zuck * 0.55;
+        anton.userData.body.position.y = 0.34 - zuck * 0.1;
       }
       var lean = Math.max(-0.5, Math.min(0.5, -S.vz * 6.9));
       var pitch = S.phase === "fly" ? Math.max(-0.5, Math.min(0.7, S.vy * 0.69 - S.pitch * 0.22)) : 0;
