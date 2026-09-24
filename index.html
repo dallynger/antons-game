@@ -1262,11 +1262,8 @@
   var ok3d = !!TH;
   var SPARSAM = false;        // Stufe 2, siehe setzeStufe()
   var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  // Ältere Geräte melden wenig Kerne oder Speicher – dann von Anfang an sparsam
-  var IOS_WEAK = IOS && (navigator.hardwareConcurrency || 4) <= 2;
-  // Schwache Geräte bekommen ein gröberes Terrainraster
-  if (IOS_WEAK) { GRID_L = 56; GRID_W = 40; }
-  else if (IOS) { GRID_L = 74; GRID_W = 48; }
+  // Volles Terrainraster fuer alle Geraete. Frueher bekamen iPhones ein
+  // groeberes; mit ?stufe=2 laesst sich die Rechenarbeit daran wieder senken.
 
   function mat(color, flat) {
     return new TH.MeshLambertMaterial({ color: color, flatShading: flat !== false });
@@ -1282,20 +1279,20 @@
     var isIOS = IOS;
     renderer = new TH.WebGLRenderer({
       canvas: el.c,
-      antialias: !isIOS,               // spart auf iPhones spürbar Leistung
+      antialias: true,
       alpha: false,
       failIfMajorPerformanceCaveat: false
     });
     renderer.setClearColor(SKY, 1);
     if (TH.sRGBEncoding !== undefined) renderer.outputEncoding = TH.sRGBEncoding;
-    renderer.shadowMap.enabled = !IOS_WEAK;
-    renderer.shadowMap.type = isIOS ? TH.BasicShadowMap : TH.PCFSoftShadowMap;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = TH.PCFSoftShadowMap;
     var sc2 = sun && sun.shadow;
 
     scene.add(new TH.HemisphereLight(0xb2d4f4, 0x3b5a80, 0.46));
     sun = new TH.DirectionalLight(0xfff0d2, 1.44);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(isIOS ? 1024 : 2048, isIOS ? 1024 : 2048);
+    sun.shadow.mapSize.set(2048, 2048);
     var c = sun.shadow.camera;
     c.left = -46; c.right = 46; c.top = 46; c.bottom = -46; c.near = 1; c.far = 190;
     scene.add(sun);
@@ -2199,7 +2196,7 @@
   }
 
   function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, IOS ? 1.5 : 2);
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
     W = el.c.clientWidth; H = el.c.clientHeight;
     if (!ok3d) return;
     renderer.setPixelRatio(DPR);
@@ -2232,7 +2229,10 @@
   var STUFE = 0;                    // 0 voll ... 3 sparsam
   var TERR_SKIP = 1, NORM_SKIP = 2;
   var perfFrames = 0, perfStart = 0, warmFrames = 0, gute = 0;
-  var NODEGRADE = /voll/.test(location.search);
+  // Keine automatische Abstufung mehr: das Spiel laeuft immer auf voll.
+  // Die Stufen bleiben als Handschalter erhalten (?stufe=1 bis 3), falls ein
+  // Geraet damit doch nicht zurechtkommt.
+  var NODEGRADE = true;
   var FEST = (function () {
     var m = /[?&]stufe=([0-3])/.exec(location.search);
     return m ? +m[1] : -1;          // zum Ausprobieren auf dem echten Geraet
@@ -2245,7 +2245,7 @@
     STUFE = n;
     SPARSAM = n >= 3;                                  // erst ganz zuletzt
     VIEW = [VIEW_VOLL, Math.round(VIEW_VOLL * 0.88), Math.round(VIEW_VOLL * 0.74), 120][n];
-    renderer.shadowMap.enabled = (n === 0) && !IOS_WEAK;
+    renderer.shadowMap.enabled = (n === 0);
     renderer.setPixelRatio([DPR, Math.min(DPR, 1.5), 1, 1][n]);
     TERR_SKIP = [1, 1, 2, 2][n];                       // Gelaende seltener neu aufbauen
     NORM_SKIP = [2, 3, 4, 6][n];                       // Normalen seltener rechnen
