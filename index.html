@@ -312,6 +312,13 @@
   var TURBO_CAP = 0.35;      // so viel ueber dem Limit traegt Vollgas
   var TURBO_T = 130;         // Dauer in Bildern, gut zwei Sekunden
   var MAX_M = 7800;
+  // Nur zum Pruefen: ?debug&at=3600 startet weiter hinten auf der Strecke.
+  // Ohne ?debug wirkungslos, damit im Spiel niemand aus Versehen hineingeraet.
+  var DBG_AT = (function () {
+    if (!/[?&]debug/.test(location.search)) return 0;
+    var m = /[?&]at=(\d+)/.exec(location.search);
+    return m ? Math.min(MAX_M - 200, +m[1]) : 0;
+  })();
 
   var UPGRADES = [
     { id: "anlauf",  name: "Anlauf",      desc: "schneller vom Herkules weg",     base: 220, effect: "Abschuss +12 %",  tag: "A", col: "#ff8a45" },
@@ -539,7 +546,7 @@
     S.phase = "aim"; S.power = 0; S.angle = 0.5;
     aim.on = false; aim.len = 0; aim.power = 0; aim.steep = 0.7; aim.side = 0; aim.vert = 0.7;
     S.side = 0;
-    S.m = 0; S.x = 0; S.y = groundY(0) - 14;
+    S.m = DBG_AT; S.x = DBG_AT * PPM; S.y = groundY(DBG_AT) - 14;
     S.vx = 0; S.vy = 0; S.z = 0; S.vz = 0; S.steer = 0;
     S.coins = 0; S.combo = 0; S.comboBest = 0; S.hits = 0;
     S.airTime = 0; S.slideTime = 0; S.spin = 0; S.lastTree = 0;
@@ -1184,8 +1191,12 @@
     var img = g.createImageData(n, n), dd = img.data;
     for (var i = 0; i < n * n; i++) {
       var px = i % n, py = (i / n) | 0;
-      var w = Math.sin(px * 0.7) * Math.sin(py * 0.9) * 6
-            + Math.sin(px * 0.21 + py * 0.17) * 9;
+      // Rillen laengs der Fahrtrichtung, wie nach der Pistenraupe. Sie sitzen
+      // in der Textur statt in den Eckfarben, weil das Geländeraster quer nur
+      // alle ~3,7 m einen Punkt hat und so feine Muster nicht tragen kann.
+      var w = Math.sin(px * 0.7) * Math.sin(py * 0.9) * 5
+            + Math.sin(px * 0.21 + py * 0.17) * 8
+            + Math.sin(py * (Math.PI * 2 * 7 / n)) * 4.5;
       var v = 236 + w + (Math.random() - 0.5) * 13;
       v = Math.max(214, Math.min(255, v));
       dd[i * 4] = v; dd[i * 4 + 1] = v; dd[i * 4 + 2] = v; dd[i * 4 + 3] = 255;
@@ -1286,6 +1297,13 @@
         // Die Bahn selbst bleibt glatt gewalzt, daneben wird das Gelände wellig
         var pdT = inside ? pathDist(x, z) : 999;
         if (pdT < PATH_W + 8) bump *= 0.08 + 0.92 * Math.max(0, (pdT - PATH_W * 0.5) / (PATH_W * 0.5 + 8));
+        // Schneewulst genau an der Pistenkante: gibt der Bahn eine Silhouette,
+        // statt sie nur farblich abzusetzen. Rein optisch - groundM() und damit
+        // die Physik bleiben unberuehrt, die Bahn faehrt sich weiter glatt.
+        if (pdT > PATH_W - 5 && pdT < PATH_W + 11) {
+          var rim = (pdT - (PATH_W - 5)) / 16;
+          bump += Math.sin(rim * Math.PI) * 0.8;
+        }
         var y = gy - (inside ? 0 : 1.6) + bump;
         tPos[k] = x; tPos[k + 1] = y; tPos[k + 2] = z;
         tUv[(k / 3) * 2] = x / 9; tUv[(k / 3) * 2 + 1] = z / 9;
@@ -1299,9 +1317,18 @@
           c = SURF[surface(x, z)];
           // Die gewählte Bahn liegt heller und glatter, der Rand dunkler – so sieht man die Wege
           var pd = pathDist(x, z);
-          if (pd < PATH_W - 6) v *= 1.045;
-          else if (pd < PATH_W + 6) v *= 1.045 - 0.105 * ((pd - PATH_W + 6) / 12);
-          else v *= 0.94;
+          // Achtung Rasterweite: das Gelaende hat quer nur alle ~3,7 m einen
+          // Punkt. Alles Feinere als das kann es nicht darstellen und zerfaellt
+          // in harte Kanten - Rillen gehoeren deshalb in die Bodentextur, nicht
+          // in die Eckfarben, und die Uebergaenge muessen breit genug sein.
+          if (pd < PATH_W - 9) {
+            v *= 1.08;                                     // praeparierter Kern
+          } else if (pd < PATH_W + 3) {
+            var t = (pd - PATH_W + 9) / 12;                // 12 m weicher Rand
+            v *= 1.08 - 0.21 * t * t;
+          } else {
+            v *= 0.94;
+          }
         }
         tCol[k] = Math.min(1, c[0] * v); tCol[k + 1] = Math.min(1, c[1] * v); tCol[k + 2] = Math.min(1, c[2] * v);
         k += 3;
@@ -1519,14 +1546,20 @@
     for (var i = 0; i < n; i++) { var m = make(); m.visible = false; scene.add(m); arr.push(m); }
     pools[name] = { arr: arr, used: 0 };
   }
+  var poolMiss = {};
   function take(name) {
     var p = pools[name];
-    if (p.used >= p.arr.length) return null;
+    // Laeuft ein Pool leer, verschwinden Objekte sprunghaft - das sieht aus
+    // wie Flackern. Mitzaehlen, damit man es messen statt suchen muss.
+    if (p.used >= p.arr.length) { poolMiss[name] = (poolMiss[name] || 0) + 1; return null; }
     var m = p.arr[p.used++];
     m.visible = true;
     return m;
   }
   function resetPools() { for (var k in pools) pools[k].used = 0; }
+  if (/[?&]debug/.test(location.search)) {
+    window.__dbg = { pools: pools, miss: poolMiss, info: function () { return renderer.info; } };
+  }
   function hideRest() {
     for (var k in pools) {
       var p = pools[k];
@@ -1560,7 +1593,7 @@
   function buildPools() {
     var coinG = new TH.CylinderGeometry(0.42, 0.42, 0.1, 14);
     var coinM = mat(0xffce4d);
-    pool("coin", 240, function () { var m = new TH.Mesh(coinG, coinM); m.rotation.z = Math.PI / 2; m.castShadow = true; return m; });
+    pool("coin", 320, function () { var m = new TH.Mesh(coinG, coinM); m.rotation.z = Math.PI / 2; m.castShadow = true; return m; });
 
     // Schanze als Keil: Einheitsgroesse 1x1x1, Anstieg in Fahrtrichtung (+x),
     // Grundflaeche bei y = 0. Dadurch sitzt sie mit position.y = Bodenhoehe
@@ -1594,7 +1627,7 @@
     pool("rock", 26, function () { var m = new TH.Mesh(rockG, mat(0x7d8fa1)); m.castShadow = true; return m; });
 
     // Drei Baumarten – Fichte, schlanke Tanne, runder Busch-Baum
-    pool("tree", 180, function () {
+    pool("tree", 330, function () {
       var g = new TH.Group();
       var t = new TH.Mesh(new TH.CylinderGeometry(0.16, 0.24, 1.2, 6), mat(0x574024));
       t.position.y = 0.6; t.castShadow = true; g.add(t);
@@ -1610,7 +1643,7 @@
       return g;
     });
 
-    pool("tree2", 110, function () {          // hoch und schlank
+    pool("tree2", 200, function () {          // hoch und schlank
       var g = new TH.Group();
       var t = new TH.Mesh(new TH.CylinderGeometry(0.13, 0.2, 2.2, 6), mat(0x4d3a22));
       t.position.y = 1.1; t.castShadow = true; g.add(t);
@@ -1628,7 +1661,7 @@
       return g;
     });
 
-    pool("tree3", 110, function () {          // niedrig und rund, dick verschneit
+    pool("tree3", 200, function () {          // niedrig und rund, dick verschneit
       var g = new TH.Group();
       var t = new TH.Mesh(new TH.CylinderGeometry(0.15, 0.2, 0.8, 6), mat(0x5c4428));
       t.position.y = 0.4; t.castShadow = true; g.add(t);
@@ -1643,7 +1676,7 @@
     });
 
     // Hütten im Bergpark
-    pool("hut", 22, function () {
+    pool("hut", 40, function () {
       var g = new TH.Group();
       var b = new TH.Mesh(roundedBoxGeo(4.6, 3.2, 6.2, 0.16), mat(0x7b5a39, false));
       b.position.y = 1.6; b.castShadow = true; b.receiveShadow = true; g.add(b);
@@ -1702,12 +1735,12 @@
       return m;
     });
 
-    pool("bush", 220, function () {
+    pool("bush", 340, function () {
       var m = new TH.Mesh(new TH.DodecahedronGeometry(0.62, 0), mat(0x27523d));
       m.castShadow = true;
       return m;
     });
-    pool("stone", 150, function () {
+    pool("stone", 210, function () {
       var m = new TH.Mesh(new TH.DodecahedronGeometry(0.75, 0), mat(0x5a6774));
       m.castShadow = true;
       return m;
@@ -1726,7 +1759,7 @@
 
     // Stadthäuser: Block plus Dach
     var faceTex = facadeTexture();
-    pool("bldg", 90, function () {
+    pool("bldg", 170, function () {
       var g = new TH.Group();
       var b = new TH.Mesh(new TH.BoxGeometry(1, 1, 1),
         new TH.MeshLambertMaterial({ color: 0xd8dfe8, map: faceTex }));
@@ -1737,7 +1770,7 @@
     });
 
     // Laternen entlang der Straßen
-    pool("lamp", 44, function () {
+    pool("lamp", 70, function () {
       var g = new TH.Group();
       var p2 = new TH.Mesh(new TH.CylinderGeometry(0.08, 0.1, 4.2, 5), mat(0x3d4a5a));
       p2.position.y = 2.1; g.add(p2);
@@ -1762,7 +1795,7 @@
     });
 
     // Bänke und Zäune für die Parks
-    pool("bench", 26, function () {
+    pool("bench", 44, function () {
       var g = new TH.Group();
       var b = new TH.Mesh(new TH.BoxGeometry(0.5, 0.12, 1.8), mat(0x8a6339));
       b.position.y = 0.5; g.add(b);
@@ -2126,7 +2159,7 @@
       var k7 = Math.round(cx / 7);
       if (dd > 150) { if (k7 % 4) continue; }
       else if (dd > 70) { if (k7 % 2) continue; }
-      var halfZ = (SPARSAM ? 26 : 38) + Math.min(dd, 160) * (SPARSAM ? 0.22 : 0.30);
+      var halfZ = (SPARSAM ? 26 : 50) + Math.min(dd, 170) * (SPARSAM ? 0.22 : 0.40);
       var z0 = Math.floor((camPos.z - halfZ) / 9) * 9;
       var z1 = camPos.z + halfZ;
       for (var zz = z0; zz <= z1; zz += 9) {
@@ -2298,7 +2331,7 @@
     }
 
     if (zo === "bergpark_oben" || zo === "bergpark") {
-      if (h < 0.76) {
+      if (h < (SPARSAM ? 0.76 : 0.88)) {
         // Art und Größe hängen an der Position, damit beides über die Bilder gleich bleibt
         var art = h3 < 0.52 ? "tree" : (h3 < 0.82 ? "tree2" : "tree3");
         var t = take(art) || take("tree");
@@ -2315,36 +2348,57 @@
             c.material.color.setRGB(0.10 * gr, (0.235 + ci * 0.028) * gr, 0.175 * gr);
           });
         }
-        if (h2 > 0.82) { var bu = take("bush"); if (bu) { bu.position.set(tx + 2.2, gy + 0.3, tz - 1.6); bu.scale.setScalar(0.7 + h3 * 0.6); } }
-        if (h3 > 0.9) { var so = take("stone"); if (so) { so.position.set(tx - 2.4, gy + 0.3, tz + 1.4); so.scale.setScalar(0.6 + h2 * 0.7); so.rotation.set(h, h2 * 3, h3); } }
+        if (h2 > 0.62) { var bu = take("bush"); if (bu) { bu.position.set(tx + 2.2, gy + 0.3, tz - 1.6); bu.scale.setScalar(0.7 + h3 * 0.6); } }
+        if (h3 > 0.78) { var so = take("stone"); if (so) { so.position.set(tx - 2.4, gy + 0.3, tz + 1.4); so.scale.setScalar(0.6 + h2 * 0.7); so.rotation.set(h, h2 * 3, h3); } }
+        // Zweiter, kleinerer Baum daneben: macht aus Einzelbaeumen Gruppen
+        if (!SPARSAM && h2 < 0.42 && pd > PATH_W + 9) {
+          var t2 = take(h3 < 0.5 ? "tree3" : "tree");
+          if (t2) {
+            t2.position.set(tx + 3.6 - h3 * 1.2, gy, tz + 2.9 - h2 * 5.4);
+            t2.scale.setScalar(0.45 + h3 * 0.55);
+            t2.rotation.y = h2 * 9;
+          }
+        }
       }
       if (h > 0.96) { var bn = take("bench"); if (bn) bn.position.set(x, gy, z); }
-      if (h2 > 0.955 && pd > PATH_W + 24) {
+      if (h2 > 0.93 && pd > PATH_W + 24) {
         var hu = take("hut");
         if (hu) { hu.position.set(tx, gy, tz); hu.rotation.y = h * 6.3; hu.scale.setScalar(0.85 + h3 * 0.5); }
       }
 
     } else if (zo === "allee" || zo === "westen" || zo === "innenstadt") {
       var big = zo === "innenstadt";
-      if (h < 0.5) {
+      if (h < (SPARSAM ? 0.5 : 0.64)) {
         house(tx, tz,
               7 + h2 * 6, 8 + h * 7,
               (big ? 12 : 8) + h3 * (big ? 12 : 8), 1.5,
-              [0xdae1ea, 0xd2dae5, 0xe2e7ee, 0xcbd5e0][Math.floor(h3 * 4)]);
-      } else if (h < 0.62) {
-        var ts = take("tree");
+              [0xdae1ea, 0xd2dae5, 0xe2e7ee, 0xcbd5e0, 0xd9cfc6, 0xcfd9d4][Math.floor(h3 * 6)]);
+        // Hinterhaus versetzt dahinter: aus einer Reihe wird ein Viertel
+        if (!SPARSAM && h2 > 0.55) {
+          house(tx + 5.5, tz + (h3 < 0.5 ? -11 : 11),
+                6 + h3 * 5, 6 + h2 * 6,
+                (big ? 10 : 7) + h * 7, 1.3,
+                [0xd2dae5, 0xe2e7ee, 0xd9cfc6][Math.floor(h * 3)]);
+        }
+      } else if (h < (SPARSAM ? 0.62 : 0.80)) {
+        var ts = take(h3 < 0.62 ? "tree" : "tree2");
         if (ts) { ts.position.set(tx, gy, tz); ts.scale.setScalar(0.85 + h3 * 0.5); }
       }
+      if (!SPARSAM && h3 > 0.9) { var lp = take("lamp"); if (lp) lp.position.set(tx, gy, tz); }
 
     } else {
       // Karlsaue und Fulda: lockere Gruppen, Bänke am Wasser
       if (zo === "fulda" && az < 60) return;
-      if (h < 0.38) {
-        var tp = take("tree");
+      if (h < (SPARSAM ? 0.38 : 0.56)) {
+        var tp = take(h3 < 0.7 ? "tree" : "tree3");
         if (tp) { tp.position.set(tx, gy, tz); tp.scale.setScalar(0.9 + h2 * 0.8); }
+        if (!SPARSAM && h2 > 0.7) {
+          var bu2 = take("bush");
+          if (bu2) { bu2.position.set(tx - 2.8, gy + 0.3, tz + 2.2); bu2.scale.setScalar(0.6 + h3 * 0.7); }
+        }
       }
-      if (h > 0.93) { var b2 = take("bench"); if (b2) b2.position.set(x, gy, z); }
-      if (h3 > 0.95) { var l2 = take("lamp"); if (l2) l2.position.set(x, gy, z); }
+      if (h > 0.88) { var b2 = take("bench"); if (b2) b2.position.set(x, gy, z); }
+      if (h3 > 0.9) { var l2 = take("lamp"); if (l2) l2.position.set(x, gy, z); }
     }
   }
 
