@@ -51,10 +51,10 @@ Ausreißer-Physik und ist entfernt.
 1. **Konzeptdokument** (Rev 34) ist weiterhin veraltet und beschreibt einen
    Stand von vor diesen Änderungen.
 2. **Reste beim Instancing**: Pistenstangen und Hütten laufen noch als Gruppen.
-3. **Grafik-Inhalt**, unangetastet: bessere Baum- und Felsmodelle, lebendigere
-   Stadt (fahrende Straßenbahnen, Schaufenster, Kirchtürme), Anton selbst
-   (flatternder Schal, Schneefahne, Reaktion beim Aufprall). Die Tageszeit ist
-   erledigt, echtes Wetter (Schneetreiben, Nebelbänke) noch nicht.
+3. **Grafik-Inhalt**, offen: Felsmodelle, lebendigere Stadt (fahrende
+   Straßenbahnen, Schaufenster, Kirchtürme), Anton selbst (flatternder Schal,
+   Schneefahne, Reaktion beim Aufprall), echtes Wetter (Schneetreiben,
+   Nebelbänke). Tageszeit und Baummodelle sind erledigt.
 
 Bewusst zurückgestellt: Töne, die Stadtabschnitte erreichbar machen.
 
@@ -161,8 +161,13 @@ Three.js r128 als UMD, globales `THREE`. WebGLRenderer, Hemisphere- plus
 Directional-Light, PCFSoftShadowMap, sRGB, Nebel, Gelände als Buffergeometrie
 mit Vertexfarben, die der Kamera folgt.
 
-**Instancing.** Zwölf Einzel-Mesh-Pools über `poolInst()` und sieben Gruppen
-(drei Baumarten, Gebäude, Laternen, Bänke, Booster) über `poolInstGroup()`. Die
+**Fünf Baumarten**: Fichte, schlanke Tanne, runder Busch-Baum, kahler
+Laubbaum (die auffälligste Winter-Silhouette) und breite alte Fichte. Die
+Mischung hängt an der Zone — im Bergpark Nadelbäume, in Stadt und Karlsaue
+viele kahle.
+
+**Instancing.** Zwölf Einzel-Mesh-Pools über `poolInst()` und neun Gruppen
+(fünf Baumarten, Gebäude, Laternen, Bänke, Booster) über `poolInstGroup()`. Die
 `take()`-Schnittstelle ist identisch geblieben, deshalb musste keine
 Aufrufstelle angefasst werden. Teile einer Gruppe dürfen eigene Lage, Größe und
 Drehung haben, und `house()` setzt sie je Haus einzeln.
