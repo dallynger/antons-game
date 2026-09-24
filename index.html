@@ -1625,7 +1625,7 @@
       return g;
     });
 
-    pool("lm", 34, function () { var m = new TH.Mesh(new TH.BoxGeometry(1, 1, 1), mat(0xccd6e1)); m.castShadow = true; return m; });
+    pool("lm", 96, function () { var m = new TH.Mesh(new TH.BoxGeometry(1, 1, 1), mat(0xccd6e1)); m.castShadow = true; return m; });
 
     // Stadthäuser: Block plus Dach
     var faceTex = facadeTexture();
@@ -1998,8 +1998,8 @@
           var dr = take("drift");
           if (dr) {
             var h4 = rnd(px * 0.53 + pi * 3.1 + sgn);
-            dr.position.set(px + 11, groundM(px) - 0.9, pc + sgn * (PATH_W + 3.6 + h4 * 1.6));
-            dr.scale.set(13, 1.5 + h4 * 0.9, 3.0 + h4 * 1.6);
+            dr.position.set(px + h4 * 16, groundM(px) - 0.55, pc + sgn * (PATH_W + 3.2 + h4 * 2.2));
+            dr.scale.set(5.5 + h4 * 9, 0.85 + h4 * 0.65, 2.4 + h4 * 1.5);
           }
           var dr2 = take("drift");
           if (dr2 && (Math.round(px / 22) % 2) === 0) {
@@ -2190,7 +2190,19 @@
   function landmark3d(g, x, gy) {
     var n = g.name, off = HALFW + 14;
     if (n.indexOf("Kaskaden") >= 0 || n.indexOf("Becken") >= 0) {
-      for (var i = 0; i < 6; i++) lmBox(x + i * 3.6, gy + i * 0.85, 0, 3.2, 0.9, HALFW * 2, 0xdde7f0);
+      // Stufenband am Rand, wie die anderen Wahrzeichen. Es faellt mit dem
+      // Hang, laeuft also in Fahrtrichtung abwaerts statt aufwaerts.
+      // Die Kaskaden liegen AUF der mittleren Bahn, nicht daneben: seitlich
+      // versetzte Wahrzeichen sind aus der Nahe ausserhalb des Blickfelds.
+      // Flach am Boden, damit nichts kollidiert und nichts durchsticht -
+      // die Stufen sind eine breite Wasserrinne, die man hinunterrutscht.
+      var kn = 22, kw = 7.5;
+      for (var i = 0; i < kn; i++) {
+        var kx = x + i * kw, kg = groundM(kx);
+        var kz = pathCenter(2, kx);
+        lmBox(kx, kg + 0.04, kz, kw * 0.96, 0.1, 30, (i % 2) ? 0xdbe8f4 : 0xc9dcee);
+        lmBox(kx, kg + 0.1, kz, kw * 0.62, 0.1, 23, 0x74aedb);   // Wasserband
+      }
     } else if (n.indexOf("Fontäne") >= 0) {
       lmBox(x, gy, -off, 7, 0.7, 7, 0x6098c4);
       lmBox(x, gy + 0.7, -off, 0.7, 11, 0.7, 0x8fc0e0);
