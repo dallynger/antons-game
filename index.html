@@ -636,6 +636,7 @@
     S.newGoals = []; S.newSecrets = [];
     S.turbo = 0;
     S.stallX = 0; S.stallT = 0; S.duck = 0;
+    spur.length = 0;
     S.fuelMax = 391 + lv("sprit") * 113;
     S.fuel = S.fuelMax;
     objCache = {};
@@ -855,6 +856,7 @@
       }
       S.x += S.vx;
       S.y = groundY(S.x / PPM);
+      merkeSpur(S.x / PPM, S.z);
       // Staub nach Tempo und Untergrund
       // Schneefahne: ab halbem Tempo kommt ein zweiter Schwung dazu, damit
       // hinter dem Ring eine richtige Fahne steht statt einzelner Woelkchen.
@@ -1383,6 +1385,7 @@
     buildSling();
     buildPools();
     buildSnow();
+    buildSpur();
     buildDust();
 
     landRing = new TH.Mesh(
@@ -1876,6 +1879,41 @@
     }
     anton.userData.schal = schal;
 
+    // Schneefahne: zwei flache Keile, die hinter dem Ring auffaechern. Sie
+    // sind das auffaelligste Element im Vorbild und der Hauptgrund, warum es
+    // schnell wirkt - Tempo entsteht aus vorbeiziehendem Boden, nicht aus der
+    // Zahl oben. Flach gelegte Kegel, keine Partikel: damit laesst es sich
+    // sauber am Tempo festmachen und kostet zwei Zeichenaufrufe.
+    // Zwei flache Schwaden direkt hinter dem Ring, flach auf dem Boden statt
+    // als Kegel vor der Figur. Der erste Versuch mit Kegeln legte dunkle
+    // Dreiecke ueber Anton - eine Fahne gehoert auf den Schnee, nicht in die Luft.
+    var fahne = [];
+    [-1, 1].forEach(function (sg) {
+      var fl = new TH.Mesh(new TH.PlaneGeometry(1, 1),
+        new TH.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, depthWrite: false }));
+      fl.rotation.order = "YXZ";
+      fl.rotation.x = -Math.PI / 2;
+      fl.rotation.y = sg * 0.22;
+      fl.position.set(-1.9, -0.28, sg * 0.5);
+      fl.renderOrder = 3;
+      anton.add(fl);
+      fahne.push(fl);
+    });
+    anton.userData.fahne = fahne;
+
+    // Flammen bei Vollgas: sichtbarer Zustand statt nur eines Zahlenwerts
+    var flammen = [];
+    [-1, 1].forEach(function (sg) {
+      var fm = new TH.Mesh(new TH.ConeGeometry(0.26, 1.5, 8),
+        new TH.MeshBasicMaterial({ color: 0xff7a1e, transparent: true, opacity: 0.9, depthWrite: false }));
+      fm.rotation.z = Math.PI / 2;
+      fm.position.set(-1.15, 0.34, sg * 0.66);
+      fm.visible = false;
+      anton.add(fm);
+      flammen.push(fm);
+    });
+    anton.userData.flammen = flammen;
+
     // Anton bekommt dieselbe Tinte. Die Kontur haengt als Kind am jeweiligen
     // Teil, dadurch folgt sie jeder Bewegung von selbst - auch dem Schal.
     var teile = [];
@@ -2120,6 +2158,71 @@
   // treeAt() die Baumpositionen ein zweites Mal nach - sobald eine der beiden
   // Formeln sich aenderte, drifteten sie auseinander und man flog durch Baeume.
   // Jetzt gibt es nur noch eine Quelle.
+  // Gefahrener Weg fuer die Spur im Schnee
+  var spur = [], SPUR_MAX = 88, SPUR_ABSTAND = 1.6;
+  function merkeSpur(m, z) {
+    var l = spur[spur.length - 1];
+    if (l && Math.abs(m - l.m) < SPUR_ABSTAND) return;
+    spur.push({ m: m, z: z });
+    if (spur.length > SPUR_MAX) spur.shift();
+  }
+
+  // Die Spur als EIN durchgehendes Band. Einzelne Quader liessen Luecken und
+  // ueberlappten sich zu hellen Platten; ein fortlaufendes Band hat beides
+  // nicht und kostet nur eine Zeichenanweisung.
+  var spurMesh = null, spurPos = null, spurCol = null;
+  function buildSpur() {
+    var g = new TH.BufferGeometry();
+    spurPos = new Float32Array(SPUR_MAX * 2 * 3);
+    spurCol = new Float32Array(SPUR_MAX * 2 * 3);
+    var idx = [];
+    for (var i = 0; i < SPUR_MAX - 1; i++) {
+      var a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+    g.setAttribute("position", new TH.BufferAttribute(spurPos, 3));
+    g.setAttribute("color", new TH.BufferAttribute(spurCol, 3));
+    g.setIndex(idx);
+    spurMesh = new TH.Mesh(g, new TH.MeshBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0.62,
+      depthWrite: false, side: TH.DoubleSide
+    }));
+    spurMesh.renderOrder = 1;
+    spurMesh.frustumCulled = false;
+    scene.add(spurMesh);
+  }
+  function updateSpur() {
+    if (!spurMesh) return;
+    var n = spur.length;
+    spurMesh.visible = n > 2;
+    if (n < 3) return;
+    for (var i = 0; i < SPUR_MAX; i++) {
+      var k = Math.min(i, n - 1);
+      var p = spur[k];
+      // Richtung aus dem Nachbarpunkt, daraus die Querrichtung
+      var q = spur[Math.min(k + 1, n - 1)], r = spur[Math.max(k - 1, 0)];
+      var dm = q.m - r.m, dz = q.z - r.z;
+      var L = Math.sqrt(dm * dm + dz * dz) || 1;
+      var frisch = k / (n - 1);                     // 1 = direkt hinter Anton
+      var breit = 0.62 + frisch * 0.92;
+      var nx = -dz / L * breit, nz = dm / L * breit;
+      var y = groundM(p.m) + 0.04;
+      var o = i * 6;
+      spurPos[o] = p.m + nx; spurPos[o + 1] = y; spurPos[o + 2] = p.z + nz;
+      spurPos[o + 3] = p.m - nx; spurPos[o + 4] = y; spurPos[o + 5] = p.z - nz;
+      // Frisch ist die Spur deutlich blauer als der Schnee und laeuft nach
+      // hinten gegen Weiss aus. Vorher war sie durchgehend fast weiss und
+      // damit unsichtbar.
+      var t = (1 - frisch) * 0.88;
+      var cr = 0.44 * (1 - t) + t, cg = 0.60 * (1 - t) + t, cb = 0.78 * (1 - t) + t;
+      for (var v = 0; v < 2; v++) {
+        spurCol[o + v * 3] = cr; spurCol[o + v * 3 + 1] = cg; spurCol[o + v * 3 + 2] = cb;
+      }
+    }
+    spurMesh.geometry.attributes.position.needsUpdate = true;
+    spurMesh.geometry.attributes.color.needsUpdate = true;
+  }
+
   var solids = [], solidsN = 0;
   function addSolid(x, z, r, hoehe, hart) {
     if (Math.abs(x - S.x / PPM) > 70) return;      // nur die Umgebung mitfuehren
@@ -2662,6 +2765,32 @@
         blob.material.opacity = sh;
         blob.visible = true;
       }
+      // Fahne waechst mit dem Tempo und verschwindet in der Luft
+      var fahne = anton.userData.fahne;
+      if (fahne) {
+        var tf = Math.min(1, Math.abs(S.vx) / VMAX);
+        var amBoden = S.phase === "slide";
+        for (var fq = 0; fq < fahne.length; fq++) {
+          fahne[fq].visible = amBoden && tf > 0.1;
+          var lang = 1.6 + tf * 4.2;
+          fahne[fq].scale.set(0.8 + tf * 0.7, lang, 1);
+          fahne[fq].position.x = -1.4 - lang * 0.42;
+          fahne[fq].material.opacity = 0.1 + tf * 0.3;
+        }
+      }
+      var flammen = anton.userData.flammen;
+      if (flammen) {
+        var an = S.turbo > 0;
+        for (var fm2 = 0; fm2 < flammen.length; fm2++) {
+          flammen[fm2].visible = an;
+          if (an) {
+            var fl2 = 0.8 + Math.sin(S.t * 0.9 + fm2) * 0.25;
+            flammen[fm2].scale.set(fl2, 1, 1);
+            flammen[fm2].material.opacity = 0.65 + Math.sin(S.t * 1.3 + fm2) * 0.25;
+          }
+        }
+      }
+
       // Schal: Welle nach hinten, Staerke aus dem Tempo. In der Luft steht er
       // fast waagerecht, beim Rutschen liegt er tiefer.
       var schal = anton.userData.schal;
@@ -2888,6 +3017,7 @@
       landmark3d(g, g.m, groundM(g.m));
     });
 
+    updateSpur();
     // Münzen, Rampen, Hindernisse, Häuser
     objectsBetween(camPos.x - 20, camPos.x + VIEW).forEach(function (o) {
       if (o.gone) return;
