@@ -77,6 +77,78 @@
   .hud .right { text-align: right; }
   .hud .coins { color: #a5700c; }
 
+  /* Temporing unten links, nach dem Vorbild aus Sled Surfers */
+  .tempo {
+    position: absolute; left: 14px;
+    bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+    width: 86px; height: 86px; pointer-events: none;
+  }
+  .tempo svg { width: 100%; height: 100%; display: block; }
+  .tempo .zahl {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    text-align: center; line-height: 1.05;
+  }
+  .tempo .zahl b { display: block; font-family: var(--display); font-size: 21px; color: #10304f; }
+  .tempo .zahl span { display: block; font-size: 10px; letter-spacing: .08em; color: #3c6287; }
+  .tempo .flamme {
+    position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%);
+    font-size: 15px; opacity: 0; transition: opacity .15s;
+  }
+  .tempo.heiss .flamme { opacity: 1; }
+
+  /* Fortschritt ueber die Gesamtstrecke, rechts */
+  .strecke {
+    position: absolute; right: 16px;
+    top: calc(96px + env(safe-area-inset-top, 0px));
+    bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+    width: 6px; border-radius: 99px; background: rgba(16,48,79,.16);
+    pointer-events: none;
+  }
+  .strecke i {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--jersey); border-radius: 99px;
+  }
+  .strecke u {
+    position: absolute; left: 50%; width: 11px; height: 11px;
+    margin-left: -5.5px; transform: rotate(45deg);
+    background: #cfe0ef; border: 1.5px solid #8fb0cc; border-radius: 2px;
+  }
+  .strecke u.hin { background: var(--gold); border-color: #c89b1a; }
+  .strecke b {
+    position: absolute; right: 10px; bottom: -4px;
+    font-size: 11px; font-weight: 700; color: #10304f;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Steuerring: zeigt, wo der Finger steht */
+  .stick {
+    position: absolute; width: 104px; height: 104px; margin: -52px 0 0 -52px;
+    border: 2.5px solid rgba(255,255,255,.55); border-radius: 50%;
+    pointer-events: none; opacity: 0; transition: opacity .12s;
+  }
+  .stick.an { opacity: 1; }
+  .stick i {
+    position: absolute; left: 50%; top: 50%; width: 30px; height: 30px;
+    margin: -15px 0 0 -15px; border-radius: 50%;
+    background: rgba(255,255,255,.75);
+  }
+
+  /* Aufsteigende Bonus-Einblendungen */
+  .bonus {
+    position: absolute; left: 50%; top: 42%; transform: translateX(-50%);
+    pointer-events: none; display: grid; gap: 2px; justify-items: center;
+  }
+  .bonus span {
+    font-family: var(--display); font-size: 17px; color: #ffb02e;
+    text-shadow: 0 2px 8px rgba(8,20,36,.5);
+    animation: steigen 1.1s ease-out forwards;
+  }
+  @keyframes steigen {
+    0% { opacity: 0; transform: translateY(8px) scale(.8); }
+    25% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-46px) scale(1); }
+  }
+
   .fuelbar {
     position: absolute; left: 16px; right: 16px;
     bottom: calc(18px + env(safe-area-inset-bottom, 0px));
@@ -326,6 +398,20 @@
   </div>
   <div class="grade"></div>
   <div class="rush" id="rush"></div>
+  <div class="tempo" id="tempo" hidden>
+    <svg viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="42" fill="rgba(255,255,255,.5)"/>
+      <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(16,48,79,.14)" stroke-width="7"/>
+      <circle id="tempoArc" cx="50" cy="50" r="42" fill="none" stroke="#3fd0c9"
+              stroke-width="7" stroke-linecap="round" transform="rotate(135 50 50)"
+              stroke-dasharray="198 264" stroke-dashoffset="198"/>
+    </svg>
+    <div class="zahl"><b id="tempoZahl">0</b><span>km/h</span></div>
+    <div class="flamme">🔥</div>
+  </div>
+  <div class="strecke" id="strecke" hidden><i id="streckeFill"></i><b id="streckeProz">0 %</b></div>
+  <div class="stick" id="stick"><i id="stickDot"></i></div>
+  <div class="bonus" id="bonus"></div>
   <div class="fuelbar" id="fuelBar" hidden><i id="fuelFill"></i></div>
   <button class="restart" id="restart" hidden>Neu starten</button>
   <div class="banner" id="banner"><b id="bTitle"></b><span id="bSub"></span></div>
@@ -595,6 +681,15 @@
     aimText: document.getElementById("aimText"),
     aimLabel: document.getElementById("aimLabel"),
     rush: document.getElementById("rush"),
+    tempo: document.getElementById("tempo"),
+    tempoArc: document.getElementById("tempoArc"),
+    tempoZahl: document.getElementById("tempoZahl"),
+    strecke: document.getElementById("strecke"),
+    streckeFill: document.getElementById("streckeFill"),
+    streckeProz: document.getElementById("streckeProz"),
+    stick: document.getElementById("stick"),
+    stickDot: document.getElementById("stickDot"),
+    bonus: document.getElementById("bonus"),
     restart: document.getElementById("restart"),
     rush: document.getElementById("rush")
   };
@@ -643,6 +738,9 @@
     el.fuelBar.hidden = false;
     el.aimBar.hidden = false;
     el.restart.hidden = false;
+    baueMeilen();
+    el.tempo.hidden = false;
+    el.strecke.hidden = false;
     document.querySelector(".hud").style.opacity = "1";
     updateHud();
     hideSheet();
@@ -693,6 +791,10 @@
       // der Mitte tippte, riss Anton sofort auf Anschlag zur Seite.
       ctl.x0 = p.x; ctl.y0 = p.y;
       S.steer = 0; S.pitch = 0;
+      el.stick.style.left = p.x + "px";
+      el.stick.style.top = p.y + "px";
+      el.stickDot.style.transform = "translate(0px, 0px)";
+      el.stick.classList.add("an");
       return;
     }
   }
@@ -718,7 +820,13 @@
   function onMove(e) {
     var p = ptXY(e);
     if (aim.on) { aim.x = p.x; aim.y = p.y; aimUpdate(); return; }
-    if (S.held) steuere(p.x, p.y);
+    if (S.held) {
+      steuere(p.x, p.y);
+      el.stick.style.left = ctl.x0 + "px";
+      el.stick.style.top = ctl.y0 + "px";
+      el.stickDot.style.transform =
+        "translate(" + (S.steer * 37).toFixed(0) + "px," + (-S.pitch * 37).toFixed(0) + "px)";
+    }
   }
   function onUp() {
     if (aim.on) {
@@ -733,6 +841,7 @@
     S.held = false;
     S.steer = 0;
     S.pitch = 0;
+    el.stick.classList.remove("an");
   }
 
   // Neu starten bricht den Lauf ab, ohne ihn zu werten - gesammelte Muenzen
@@ -936,7 +1045,9 @@
         S.combo++;
         if (S.combo > S.comboBest) S.comboBest = S.combo;
         var mult = 1 + Math.min(S.combo, 20) * 0.04;
-        S.coins += Math.round(o.v * mult * (1 + lv("kappe") * 0.18));
+        var gab = Math.round(o.v * mult * (1 + lv("kappe") * 0.18));
+        S.coins += gab;
+        if (o.type !== "coin") zeigeBonus("+" + gab);
         puff(o.type === "pile" ? 10 : 4, "gold");
         S.flash = 4;
       } else if (o.type === "ramp") {
@@ -961,7 +1072,7 @@
         S.turbo = TURBO_T;
         S.flash = 6;
         puff(14, "schub");
-        banner("Vollgas!", "Blitz eingesammelt");
+        zeigeBonus("Vollgas!");
       } else if (o.type === "rock") {
         o.gone = true;
         S.vx *= 0.72; S.combo = 0; S.hits++; S.duck = 0.55;
@@ -989,8 +1100,47 @@
   }
 
   var lastCoins = -1;
+  // Meilensteine auf der Fortschrittsleiste anlegen - einmal, nicht je Bild
+  var meilenGesetzt = false;
+  function baueMeilen() {
+    if (meilenGesetzt || !el.strecke) return;
+    GOALS.forEach(function (g) {
+      var u = document.createElement("u");
+      u.style.bottom = (g.m / MAX_M * 100) + "%";
+      u.dataset.m = g.m;
+      el.strecke.appendChild(u);
+    });
+    meilenGesetzt = true;
+  }
+
+  function zeigeBonus(text) {
+    if (!el.bonus) return;
+    var sp = document.createElement("span");
+    sp.textContent = text;
+    el.bonus.appendChild(sp);
+    setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }, 1200);
+  }
+
   function updateHud() {
     if (el.rush) el.rush.style.opacity = S.turbo > 0 ? "1" : "0";
+    // Tempo in km/h: Pixel je Bild -> Meter je Sekunde -> km/h
+    if (el.tempo) {
+      var kmh = Math.round(Math.abs(S.vx) / PPM * 60 * 3.6);
+      el.tempoZahl.textContent = kmh;
+      var voll = (VMAX + lv("schub") * 0.061875) * 1.35 / PPM * 60 * 3.6;
+      var anteil = Math.max(0, Math.min(1, kmh / voll));
+      el.tempoArc.setAttribute("stroke-dashoffset", (198 * (1 - anteil)).toFixed(1));
+      el.tempo.classList.toggle("heiss", S.turbo > 0);
+    }
+    if (el.strecke) {
+      var anteilS = Math.max(0, Math.min(1, S.m / MAX_M));
+      el.streckeFill.style.height = (anteilS * 100) + "%";
+      el.streckeProz.textContent = Math.round(anteilS * 100) + " %";
+      var us = el.strecke.querySelectorAll("u");
+      for (var ui = 0; ui < us.length; ui++) {
+        us[ui].classList.toggle("hin", S.m >= +us[ui].dataset.m);
+      }
+    }
     el.dist.textContent = Math.round(S.m) + " m";
     var cn = save.coins + S.coins;
     if (cn !== lastCoins) {
@@ -1017,6 +1167,9 @@
     el.aimBar.hidden = true;
     el.aimLabel.hidden = true;
     el.restart.hidden = true;
+    el.tempo.hidden = true;
+    el.strecke.hidden = true;
+    el.stick.classList.remove("an");
     var distCoins = Math.round(S.m / 11 * (1 + lv("kappe") * 0.18));
     var total = S.coins + distCoins;
     save.coins += total;
@@ -1261,6 +1414,8 @@
     h.push('<div class="sticky"><button class="btn" id="go">Los geht\'s</button></div>');
     el.sheet.className = "sheet menu";
     el.restart.hidden = true;
+    if (el.tempo) el.tempo.hidden = true;
+    if (el.strecke) el.strecke.hidden = true;
     document.querySelector(".hud").style.opacity = "0";
     el.sheet.innerHTML = h.join("");
     el.sheet.hidden = false;
