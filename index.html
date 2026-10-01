@@ -1596,12 +1596,12 @@
   // haengen an der Streckenposition, dazwischen wird weich gemischt. So hat
   // jeder Abschnitt sein eigenes Wetter, ohne dass etwas nachgeladen wird.
   var WETTER = [
-    { m: 0,    schnee: 0.85, nebel: 0.55 },   // oben am Herkules: dichtes Treiben
-    { m: 900,  schnee: 0.55, nebel: 0.30 },   // Bergpark: laesst nach
-    { m: 2600, schnee: 0.18, nebel: 0.10 },   // Allee: klar
-    { m: 5200, schnee: 0.05, nebel: 0.05 },   // Innenstadt: trocken
-    { m: 6500, schnee: 0.30, nebel: 0.95 },   // ueber der Fulda: Nebelbank
-    { m: 7800, schnee: 0.60, nebel: 0.25 }    // Buga-See: leichtes Abendtreiben
+    { m: 0,    schnee: 0.40, nebel: 0.22 },   // oben am Herkules: leichtes Treiben
+    { m: 900,  schnee: 0.22, nebel: 0.10 },   // Bergpark: laesst nach
+    { m: 2600, schnee: 0.08, nebel: 0.00 },   // Allee: klar
+    { m: 5200, schnee: 0.02, nebel: 0.00 },   // Innenstadt: trocken
+    { m: 6500, schnee: 0.14, nebel: 0.55 },   // ueber der Fulda: Nebelbank
+    { m: 7800, schnee: 0.26, nebel: 0.08 }    // Buga-See: leichtes Abendtreiben
   ];
   var wSchnee = 0.5, wNebel = 0.3, wWind = 0;
   function setzeWetter(m) {
@@ -1615,14 +1615,14 @@
     // Wind dreht langsam, damit das Treiben nicht schnurgerade faellt
     wWind = Math.sin(m / 620) * 0.5 + Math.sin(m / 190) * 0.22;
     if (snow) {
-      snow.material.size = 0.14 + wSchnee * 0.26;
-      snow.material.opacity = 0.18 + wSchnee * 0.62;
+      snow.material.size = 0.1 + wSchnee * 0.3;
+      snow.material.opacity = 0.08 + wSchnee * 0.7;
     }
     // Nebelbank zieht die Sicht zusammen, ohne die Stufe zu veraendern
     // Nur maessig am Nahbereich ziehen: sonst liegt der Dunst schon auf Anton
     // selbst, der nur 11 m vor der Kamera sitzt.
-    scene.fog.near = fogNahBasis * (1 - wNebel * 0.52);
-    scene.fog.far = fogFernBasis * (1 - wNebel * 0.62);
+    scene.fog.near = fogNahBasis * (1 - wNebel * 0.55);
+    scene.fog.far = fogFernBasis * (1 - wNebel * 0.45);
   }
 
   var _cA = new TH.Color(), _cB = new TH.Color();
@@ -1774,7 +1774,11 @@
   }
 
   var DUSTCOL = [[0.62, 0.82, 1.0], [0.52, 0.48, 0.44], [0.40, 0.62, 0.30]];
-  var SURF = [[0.86, 0.91, 0.99], [0.42, 0.41, 0.44], [0.22, 0.38, 0.21]];
+  // Neben der Piste liegt verschneite Wiese, nicht Sommergras. Das satte Gruen
+  // stiess im Winterbild hart gegen den Schnee und zog eine Kante quer durchs
+  // Bild; jetzt ist es ein angeschneiter Gruenton, der die Bahn trotzdem
+  // erkennbar laesst.
+  var SURF = [[0.86, 0.91, 0.99], [0.42, 0.41, 0.44], [0.63, 0.73, 0.66]];
   var ROAD = [0.30, 0.32, 0.36], PAVE = [0.52, 0.55, 0.60], WATER = [0.30, 0.50, 0.70];
 
   // Die Strecke hat Abschnitte mit eigenem Charakter
@@ -2088,7 +2092,13 @@
     var teile = [];
     anton.traverse(function (o) { if (o.isMesh) teile.push(o); });
     teile.forEach(function (o) {
-      var k = new TH.Mesh(konturGeo(o.geometry, 0.055), konturMat);
+      // Duenne Platten (Fluegel, Fahne) bekommen eine duennere Huelle. Bei
+      // 0.055 war die Huelle um ein 0.09 dickes Brett dicker als das Brett
+      // selbst - aus dem hellen Fluegel wurde ein dunkles Brett quer vor Anton.
+      o.geometry.computeBoundingBox();
+      var bb = o.geometry.boundingBox;
+      var duenn = Math.min(bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z);
+      var k = new TH.Mesh(konturGeo(o.geometry, Math.min(0.055, duenn * 0.22)), konturMat);
       k.visible = tinteAn;
       konturen.push(k);
       o.add(k);
@@ -2097,10 +2107,10 @@
     anton.userData.body = body;
 
     // Flügel am Ring, wachsen mit dem Upgrade
-    var wingM = mat(0xdfe9f3, false);
+    var wingM = mat(0x4fc3bb, false);   // Tuerkis wie das Trikot, nicht Schneeweiss
     anton.userData.wings = [];
     [-1, 1].forEach(function (sgn) {
-      var w = new TH.Mesh(roundedBoxGeo(0.9, 0.09, 1.7, 0.04), wingM);
+      var w = new TH.Mesh(roundedBoxGeo(0.9, 0.26, 1.7, 0.1), wingM);
       w.position.set(-0.1, 0.5, sgn * 1.1);
       w.rotation.x = sgn * 0.12;
       w.castShadow = true;
@@ -2389,7 +2399,7 @@
       // hinten gegen Weiss aus. Vorher war sie durchgehend fast weiss und
       // damit unsichtbar.
       var t = (1 - frisch) * 0.88;
-      var cr = 0.44 * (1 - t) + t, cg = 0.60 * (1 - t) + t, cb = 0.78 * (1 - t) + t;
+      var cr = 0.62 * (1 - t) + t, cg = 0.74 * (1 - t) + t, cb = 0.90 * (1 - t) + t;
       for (var v = 0; v < 2; v++) {
         spurCol[o + v * 3] = cr; spurCol[o + v * 3 + 1] = cg; spurCol[o + v * 3 + 2] = cb;
       }
@@ -2709,16 +2719,35 @@
     dust.geometry.attributes.color.needsUpdate = true;
   }
 
+  // Runde Flocke statt des harten Quadrats, das ein Point von sich aus ist.
+  // Auf dem Handy waren das die weissen Kaestchen ueber dem ganzen Bild.
+  function flockenTextur() {
+    var cv = document.createElement("canvas");
+    cv.width = cv.height = 32;
+    var g2 = cv.getContext("2d");
+    var gr = g2.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, "rgba(255,255,255,1)");
+    gr.addColorStop(0.55, "rgba(255,255,255,0.85)");
+    gr.addColorStop(1, "rgba(255,255,255,0)");
+    g2.fillStyle = gr; g2.fillRect(0, 0, 32, 32);
+    var t = new TH.CanvasTexture(cv);
+    t.needsUpdate = true;
+    return t;
+  }
+  var SNOWN = 130;                 // vorher 260 - weniger, dafuer sichtbar rund
   function buildSnow() {
     var g = new TH.BufferGeometry();
-    snowPos = new Float32Array(260 * 3);
-    for (var i = 0; i < 260; i++) {
+    snowPos = new Float32Array(SNOWN * 3);
+    for (var i = 0; i < SNOWN; i++) {
       snowPos[i * 3] = (Math.random() - 0.5) * 70;
       snowPos[i * 3 + 1] = Math.random() * 26;
       snowPos[i * 3 + 2] = (Math.random() - 0.5) * 70;
     }
     g.setAttribute("position", new TH.BufferAttribute(snowPos, 3));
-    snow = new TH.Points(g, new TH.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true, opacity: 0.7, sizeAttenuation: true }));
+    snow = new TH.Points(g, new TH.PointsMaterial({
+      color: 0xffffff, size: 0.2, map: flockenTextur(),
+      transparent: true, opacity: 0.7, sizeAttenuation: true, depthWrite: false
+    }));
     scene.add(snow);
   }
 
@@ -2753,7 +2782,10 @@
   // Landschaft landete, obwohl noch billigere Stellschrauben offen waren.
   //
   // Gemessen wird erst nach dem Anlauf und dann laufend, herunter wie herauf.
-  var fogNahBasis = 34, fogFernBasis = 210 * 1.9;
+  // Klare Sicht. Im Vorbild liegt gar kein Dunst ueber der Strecke: die
+  // Felsen am Horizont sind so satt wie die vorne. Der Nebel setzt deshalb
+  // erst weit hinten an und reicht ueber die Sichtweite hinaus.
+  var fogNahBasis = 150, fogFernBasis = 210 * 3.1;
   var STUFE = 0;                    // 0 voll ... 3 sparsam
   var TERR_SKIP = 1, NORM_SKIP = 2;
   var perfFrames = 0, perfStart = 0, warmFrames = 0, gute = 0;
@@ -2777,8 +2809,8 @@
     renderer.setPixelRatio([DPR, Math.min(DPR, 1.5), 1, 1][n]);
     TERR_SKIP = [1, 1, 2, 2][n];                       // Gelaende seltener neu aufbauen
     NORM_SKIP = [2, 3, 4, 6][n];                       // Normalen seltener rechnen
-    fogNahBasis = n === 0 ? 34 : 24;
-    fogFernBasis = VIEW * (n === 0 ? 1.9 : 1.7);
+    fogNahBasis = n === 0 ? 150 : 110;
+    fogFernBasis = VIEW * (n === 0 ? 3.1 : 2.6);
     scene.fog.near = fogNahBasis;
     scene.fog.far = fogFernBasis;
     camera.far = VIEW + 150;
@@ -3011,7 +3043,7 @@
     // schneller oder langsamer - bei dichtem Treiben steht es fast quer.
     var fall = 0.035 + wSchnee * 0.075;
     var drift = wWind * (0.02 + wSchnee * 0.06);
-    for (var i = 0; i < 260; i++) {
+    for (var i = 0; i < SNOWN; i++) {
       snowPos[i * 3 + 1] -= fall;
       snowPos[i * 3 + 2] += drift;
       snowPos[i * 3] -= drift * 0.4;
@@ -3144,14 +3176,17 @@
           var dr = take("drift");
           if (dr) {
             var h4 = rnd(px * 0.53 + pi * 3.1 + sgn);
-            dr.position.set(px + h4 * 16, groundM(px) - 0.55, pc + sgn * (pathW(px) + 3.2 + h4 * 2.2));
-            dr.scale.set(5.5 + h4 * 9, 0.85 + h4 * 0.65, 2.4 + h4 * 1.5);
+            // Wall neben der Bahn, nicht darauf. Vorher lag die Mitte bei
+            // pathW + 3.2 bei einem Halbmesser bis 3.9 - die Wehe griff auf die
+            // Piste ueber, und auf dem Handy sass Anton mitten im Schneehaufen.
+            dr.position.set(px + h4 * 16, groundM(px) - 0.55, pc + sgn * (pathW(px) + 5.0 + h4 * 3.0));
+            dr.scale.set(5.5 + h4 * 9, 0.7 + h4 * 0.55, 1.6 + h4 * 1.2);
           }
           var dr2 = take("drift");
           if (dr2 && (Math.round(px / 22) % 2) === 0) {
             var h5 = rnd(px * 0.71 + pi * 5.3 + sgn * 2);
-            dr2.position.set(px + h5 * 14, groundM(px) - 0.3, pc + sgn * (pathW(px) + 8 + h5 * 7));
-            dr2.scale.set(3 + h5 * 5, 0.5 + h5 * 0.7, 2 + h5 * 4);
+            dr2.position.set(px + h5 * 14, groundM(px) - 0.3, pc + sgn * (pathW(px) + 11 + h5 * 7));
+            dr2.scale.set(3 + h5 * 5, 0.5 + h5 * 0.7, 1.6 + h5 * 3);
           }
         });
       }
