@@ -687,24 +687,37 @@
     if (S.phase === "fly" || S.phase === "slide") {
       S.held = true;
       if (S.phase === "fly") S.boosting = true;
-      S.steer = steerFrom(p.x);
-      S.pitch = pitchFrom(p.y);
+      // Der Aufsetzpunkt ist der Nullpunkt. Vorher wurde die absolute
+      // Bildschirmposition gerechnet - wer zum Schubgeben irgendwo ausserhalb
+      // der Mitte tippte, riss Anton sofort auf Anschlag zur Seite.
+      ctl.x0 = p.x; ctl.y0 = p.y;
+      S.steer = 0; S.pitch = 0;
       return;
     }
   }
-  function steerFrom(x) {
-    var d = (x - W / 2) / (W * 0.34);          // Mitte = geradeaus, Rand = voll
-    return Math.max(-1, Math.min(1, d));
+
+  // Steuerung ab dem Aufsetzpunkt, mit Totzone und nachziehendem Nullpunkt
+  var ctl = { x0: 0, y0: 0 };
+  var TOT = 14;                                  // Pixel, die nichts tun
+  function achse(d, spanne) {
+    if (d > TOT) d -= TOT; else if (d < -TOT) d += TOT; else return 0;
+    return Math.max(-1, Math.min(1, d / spanne));
   }
-  // oben am Bildschirm = Nase hoch, unten = Sturzflug
-  function pitchFrom(y) {
-    var d = (H / 2 - y) / (H * 0.28);
-    return Math.max(-1, Math.min(1, d));
+  function steuere(px, py) {
+    var spanX = Math.max(60, W * 0.20), spanY = Math.max(60, H * 0.16);
+    var dx = px - ctl.x0, dy = py - ctl.y0;
+    S.steer = achse(dx, spanX);
+    S.pitch = -achse(dy, spanY);
+    // Nullpunkt nachziehen, damit man am Anschlag nicht vom Bildschirm laeuft
+    if (dx > spanX + TOT) ctl.x0 = px - spanX - TOT;
+    else if (dx < -spanX - TOT) ctl.x0 = px + spanX + TOT;
+    if (dy > spanY + TOT) ctl.y0 = py - spanY - TOT;
+    else if (dy < -spanY - TOT) ctl.y0 = py + spanY + TOT;
   }
   function onMove(e) {
     var p = ptXY(e);
     if (aim.on) { aim.x = p.x; aim.y = p.y; aimUpdate(); return; }
-    if (S.held) { S.steer = steerFrom(p.x); S.pitch = pitchFrom(p.y); }
+    if (S.held) steuere(p.x, p.y);
   }
   function onUp() {
     if (aim.on) {
