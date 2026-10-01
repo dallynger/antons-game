@@ -1,6 +1,6 @@
 # Handoff – Antons Weitflug
 
-Stand 24.09.2026. Diese Datei in eine neue Unterhaltung einfügen, dann ist der
+Stand 01.10.2026. Diese Datei in eine neue Unterhaltung einfügen, dann ist der
 Kontext da. Sie ersetzt das alte Handoff zu Version 24 vollständig — dort
 stimmen Physik, Grafik und Dateiliste nicht mehr.
 
@@ -52,8 +52,10 @@ Ausreißer-Physik und ist entfernt.
    Stand von vor diesen Änderungen.
 2. **Reste beim Instancing**: Pistenstangen und Hütten laufen noch als Gruppen.
 3. **Grafik-Inhalt**, offen: Felsmodelle, lebendigere Stadt (fahrende
-   Straßenbahnen, Schaufenster, Kirchtürme). Tageszeit, Wetter, Baummodelle
-   und Anton sind erledigt.
+   Straßenbahnen, Schaufenster, Kirchtürme). Tageszeit, Wetter, Baummodelle,
+   Anton und der Cartoon-Look sind erledigt.
+4. **Stil-Entscheidung steht aus**: der Schalter im Startmenü zeigt beide
+   Schulen nebeneinander. Sobald klar ist, welche bleibt, kann die andere raus.
 
 Bewusst zurückgestellt: Töne, die Stadtabschnitte erreichbar machen.
 
@@ -160,6 +162,43 @@ Three.js r128 als UMD, globales `THREE`. WebGLRenderer, Hemisphere- plus
 Directional-Light, PCFSoftShadowMap, sRGB, Nebel, Gelände als Buffergeometrie
 mit Vertexfarben, die der Kamera folgt.
 
+**Cartoon, konsequent.** Entscheidung vom 01.10.2026: nicht Richtung Unreal,
+sondern Cartoon. Alle Materialien sind `MeshToonMaterial` mit einem
+vierstufigen Verlauf aus einer `DataTexture` (`toonGradient()`) — Licht fällt
+also in vier Stufen statt weich. Dazu Konturen nach der Methode der
+umgestülpten Hülle (`konturGeo()`): Geometrie geklont, Normalen an
+deckungsgleichen Punkten gemittelt (sonst reisst die Linie an Kanten auf),
+aufgeblasen, `BackSide`, dunkles Blau.
+
+**Stil-Schalter.** Beide Cartoon-Schulen stehen zur Wahl, weil sich das am
+Gerät besser beurteilen lässt als auf Bildern. Alle Hüllen hängen in
+`konturen[]`, `setzeTinte(an)` schaltet ihre Sichtbarkeit und merkt sich die
+Wahl unter `anton-weitflug-tinte`. Der Knopf steht oben im Startmenü:
+„Stil: mit Konturen“ / „Stil: weich“.
+
+**Weniger, dafür größer.** Lehre aus den Vorbild-Videos: dort stehen in einem
+Bild acht Bäume, nicht zweihundert. Im Bergpark sind es jetzt rund 106 statt
+gut 230, dafür etwa doppelt so groß; der zweite Baum je Rasterzelle ist ganz
+entfallen, Büsche und Steine sind selten und groß. Schanzen sind orange, rund
+50 % größer und tragen eine rote Fahne — man sieht sie Sekunden vorher.
+
+**Vordergrund bleibt leer.** Neben der Piste liegt ein Streifen ohne Bäume:
+13 m in der Natur, 9 m in Allee und Innenstadt, wo die Häuser die Straße
+säumen sollen. Dadurch ist das untere Bilddrittel leerer Schnee, und die Fahrt
+wird lesbar. Wer hier Dichte zurückdreht, nimmt genau das wieder weg.
+
+**Fahrspur und Schneefahne.** Die Spur ist *ein* durchgehendes Band
+(`spurMesh`, zwei Punkte je Stützstelle, Indexpuffer, Vertexfarben), nicht eine
+Kette von Vierecken — der erste Anlauf mit Einzelsegmenten ließ Lücken und
+stapelte sich an Kurven zu hellen Platten. Stützstellen alle 1,6 m, höchstens
+88. Die Schneefahne sind flache Flächen auf dem Schnee; als Kegel legten sie
+dunkle Dreiecke über Anton.
+
+**Anzeigen.** Tempo links unten als Ring, Fortschritt als Band rechts mit den
+Marken der Strecke, der Balken unten ist die Weite. Bei Vollgas brennt eine
+sichtbare Flamme. Alles nach dem Vorbild: wenige, große, immer gleiche Elemente
+am Rand, Bildmitte frei.
+
 **Anton** trägt einen Schal aus sechs Gliedern hinter dem Nacken. Jedes hängt
 dem vorigen nach, dadurch läuft eine Welle durch; Stärke und Auslenkung hängen
 am Tempo. Er weht seitlich weg, weil die Kamera hinter Anton steht und er
@@ -178,12 +217,16 @@ viele kahle.
 Aufrufstelle angefasst werden. Teile einer Gruppe dürfen eigene Lage, Größe und
 Drehung haben, und `house()` setzt sie je Haus einzeln.
 
-| Zone | Zeichenaufrufe vorher | nachher |
-|---|---|---|
-| Bergpark | 1154 | 121 |
-| Allee | 733 | 123 |
-| Innenstadt | 734 | 119 |
-| Karlsaue | 624 | 132 |
+| Zone | Zeichenaufrufe vorher | nach Instancing | heute |
+|---|---|---|---|
+| Bergpark | 1154 | 121 | 211 |
+| Allee | 733 | 123 | 176 |
+| Innenstadt | 734 | 119 | 170 |
+| Karlsaue | 624 | 132 | 214 |
+
+Der Anstieg gegenüber dem Instancing-Stand sind die Konturmeshes: jede
+instanzierte Art zeichnet ihre Hülle als zweiten Aufruf. Mit `Stil: weich`
+fällt das wieder weg.
 
 **Tageszeit.** Der Himmel wandert über die Strecke: kalter Morgen am Herkules,
 klarer Vormittag im Bergpark, heller Mittag über der Stadt, Abendlicht am
@@ -242,7 +285,11 @@ aus der Geometrie berechnet, nicht aus den Instanzpositionen — sonst
 verschwindet alles, sobald der Ursprung aus dem Bild läuft.
 
 **Pools, die ausgehen.** `take()` zählt jetzt mit (`poolMiss`), unter `?debug`
-auslesbar. Bei Dichteänderungen prüfen.
+auslesbar. Bei Dichteänderungen prüfen — und nicht nur bei Dichte: als jede
+Schanze eine dritte Marke bekam (zwei Baken plus Fahne), stand `rampmark` bei
+51 von 52, und ab da liefert `take()` null und Objekte verschwinden. Wer die
+Zahl der Teile je Objekt ändert, rechnet den Pool neu. `zonen.js` meldet alles
+über 85 %.
 
 **Blickfeldwerte sind senkrecht gemeint.** 58° senkrecht werden auf einem
 breiten Fenster über 90° waagerecht, und alles am Bildrand zieht sich lang.
