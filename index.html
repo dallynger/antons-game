@@ -242,6 +242,9 @@
     padding: 9px 4px; border-radius: 9px; cursor: pointer;
   }
   .tabs button[aria-pressed="true"] { background: var(--panel-2); color: var(--ink); }
+  .stil { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; }
+  .stil > span { font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-dim); }
   .who { display: flex; flex-wrap: wrap; gap: 6px; }
   .who button {
     position: relative; border: 1px solid var(--line); background: var(--panel);
@@ -1185,6 +1188,21 @@
     return null;
   }
 
+  // Grafikwahl. Steht im Startmenue und im Schlussbild, sonst kaeme man nach
+  // dem ersten Lauf nicht mehr dran, ohne die Seite neu zu laden - genau das
+  // war der Fall.
+  function stilHtml() {
+    return '<div class="stil"><span>Grafik</span><div class="who">' +
+           '<button id="stil-k" aria-pressed="' + tinteAn + '">Mit Konturen</button>' +
+           '<button id="stil-w" aria-pressed="' + (!tinteAn) + '">Weich</button>' +
+           '</div></div>';
+  }
+  function wireStil(neu) {
+    var k = document.getElementById("stil-k"), w = document.getElementById("stil-w");
+    if (k) k.addEventListener("click", function () { setzeTinte(true); neu(); });
+    if (w) w.addEventListener("click", function () { setzeTinte(false); neu(); });
+  }
+
   function showSheet(distCoins, total) {
     var ng = nextGoal();
     var h = [];
@@ -1209,6 +1227,7 @@
       h.push('<div class="goal"><div class="row"><span class="name">Ganz Kassel geschafft</span></div></div>');
     }
 
+    h.push(stilHtml());
     h.push(tabsHtml([["werkstatt", "Werkstatt"], ["kleider", "Anziehen"]]));
     h.push(tabInhalt());
 
@@ -1223,6 +1242,7 @@
     el.coins.textContent = save.coins;
 
     var neu = function () { showSheet(distCoins, total); };
+    wireStil(neu);
     wireTabs(neu);
     wireShop(neu);
     wireWardrobe(neu);
@@ -1409,9 +1429,7 @@
            '<span>' + esc(namen.aktiv) +
            (save.best ? ' · Bestweite ' + save.best + ' m' : ' · vom Herkules bis zur Fulda') + '</span>' +
            '</div>');
-    h.push('<div class="who" style="justify-content:center">' +
-           '<button id="tinte" aria-pressed="' + tinteAn + '">' +
-           (tinteAn ? "Stil: mit Konturen" : "Stil: weich") + '</button></div>');
+    h.push(stilHtml());
     h.push(tabsHtml([["werkstatt", "Werkstatt"], ["kleider", "Anziehen"], ["wer", "Wer spielt"]]));
     h.push(tabInhalt());
     h.push('<div class="sticky"><button class="btn" id="go">Los geht\'s</button></div>');
@@ -1423,8 +1441,7 @@
     el.sheet.innerHTML = h.join("");
     el.sheet.hidden = false;
     el.sheet.scrollTop = 0;
-    var tb = document.getElementById("tinte");
-    if (tb) tb.addEventListener("click", function () { setzeTinte(!tinteAn); showMenu(); });
+    wireStil(showMenu);
     wireTabs(showMenu);
     wireWho();
     wireShop(showMenu);
