@@ -3292,9 +3292,12 @@
     var pd = pathDist(tx, tz);
     var pw = pathW(x);
     if (pd < pw + 2) return;                       // Bahn bleibt frei
-    if (pd < pw + 7 && h < 0.42) {
-      // Randstreifen: keine Bäume, aber kleine Büschel und Steine, damit nichts leer wirkt
-      if (h3 > 0.72) {
+    var randBreit = (zo === "allee" || zo === "westen" || zo === "innenstadt") ? 9 : 13;
+    if (pd < pw + randBreit) {
+      // Randstreifen: keine Bäume, nur flache Büschel und Steine. Breit genug,
+      // dass das untere Bilddrittel leerer Schnee bleibt - im Vorbild steht dort
+      // nie etwas, und genau das macht die Fahrt lesbar.
+      if (h3 > 0.86) {
         var rb = take(h2 > 0.5 ? "bush" : "stone");
         if (rb) { rb.position.set(tx, gy + 0.22, tz); rb.scale.setScalar(0.34 + h * 0.5); rb.rotation.set(h2, h3 * 5, h); }
       }
