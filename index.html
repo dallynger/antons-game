@@ -1846,7 +1846,12 @@
   // Wie ein Snake Run beim Skaten: in der Mitte flach, zu den Raendern zieht
   // es hoch. Man kann die Wand hochfahren und kommt von selbst zurueck.
   // Quadratisch, damit die Mitte flach bleibt und es erst aussen steil wird.
-  var WANNE = 0.30;        // Wandhoehe als Anteil der halben Bahnbreite
+  // Zum Ausprobieren am echten Geraet: ?wanne=0.5 macht die Wanne tiefer,
+  // ?wanne=0 legt die Bahn wieder flach.
+  var WANNE = (function () {
+    var m = /[?&]wanne=([0-9.]+)/.exec(location.search);
+    return m ? Math.max(0, Math.min(1, parseFloat(m[1]))) : 0.30;
+  })();                    // Wandhoehe als Anteil der halben Bahnbreite
   var WANNE_MAX = 5.5;     // Deckel, damit die breiten Abschnitte keine Schlucht werden
   var WANNE_AUS = 0.6;     // wie weit die Wand ausserhalb der Bahn wieder abfaellt
   function wanneY(x, z) {
@@ -1932,6 +1937,20 @@
             v *= 1.16 - 0.30 * t * t;
           } else {
             v *= 0.86;
+          }
+          // Die Wanne sichtbar machen. Auf weissem Schnee mit vier Tonwerten
+          // hat eine Woelbung sonst gar keine Form - man sieht das U erst,
+          // wenn die Wand dunkler und blauer ist als der Grund. Die Neigung
+          // kommt aus pd und pw, nicht aus einem zweiten Aufruf von wanneY:
+          // das waeren bei 5336 Eckpunkten je Bild zu viele.
+          var dq = Math.min(1, pd / pw);
+          var qs = 2 * Math.min(WANNE_MAX, pw * WANNE) * dq / pw;
+          if (qs > 0) {
+            v *= 1 - Math.min(0.30, qs * 0.46);
+            var bl = Math.min(0.5, qs * 0.55);
+            c = [c[0] * (1 - bl) + 0.70 * bl,
+                 c[1] * (1 - bl) + 0.79 * bl,
+                 c[2] * (1 - bl) + 0.96 * bl];
           }
         }
         tCol[k] = Math.min(1, c[0] * v); tCol[k + 1] = Math.min(1, c[1] * v); tCol[k + 2] = Math.min(1, c[2] * v);
