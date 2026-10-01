@@ -243,6 +243,19 @@ seitlich, der Wind dreht langsam mit der Position. Die Nebelbank rechnet auf
 den Werten der Leistungsstufe (`fogNahBasis`, `fogFernBasis`) und verändert die
 Stufe selbst nicht.
 
+**Die Bahn liegt in einer Wanne.** Wie ein Snake Run beim Skaten: in der Mitte
+flach, zu den Rändern zieht es hoch. `wanneY(x, z)` gibt die Höhe über dem
+Längsprofil, quadratisch über dem Abstand zur Bahnmitte, Wandhöhe 30 % der
+halben Bahnbreite, gedeckelt bei 5,5 m, und außerhalb der Bahn weich auf null.
+`bodenM(x, z) = groundM(x) + wanneY(x, z)` ist ab jetzt *der* Boden — Gelände,
+Physik, Kamera, Fahrspur und alles, was auf der Bahn liegt, rechnen damit.
+`groundM()` allein bleibt das reine Längsprofil.
+
+Das Quergefälle (`querNeigung()`) zieht beim Rutschen zurück in die Mitte
+(`BANK_A = 0.022`) und legt Anton schräg. Die Kraft wirkt **nach** dem Lenken,
+sonst frisst die Zielgeschwindigkeit des Fingers sie wieder auf. Wer hart
+lenkt, kommt trotzdem aus der Wanne heraus — das soll so sein.
+
 **Bergketten** am Horizont: drei gezackte Bänder auf der Himmelskuppel, die mit
 der Kamera mitlaufen und nie näher kommen. Drei Meshes für die ganze Tiefe.
 

@@ -431,6 +431,7 @@
   var AIR = 0.999802993;        // Luftwiderstand pro Schritt
   var STEP = 1000 / 60;
   var HALFW = 220;          // halbe Weltbreite in Metern           // halbe Pistenbreite in Metern
+  var BANK_A = 0.022;             // wie stark die Wanne zurueck in die Mitte zieht
   var STEER = 0.007695;     // seitliche Beschleunigung
   var VZMAX = 0.1215;        // seitliches Tempo
   var VMAX = 1.7531719;         // Tempolimit ~34 m/s, mit Schub-Ausbau etwas mehr
@@ -930,7 +931,7 @@
       S.x += S.vx; S.y += S.vy;
       S.spin += S.vx * 0.052734375;
 
-      var gy = groundY(S.x / PPM);
+      var gy = bodenY(S.x / PPM, S.z);
       if (S.y >= gy) {
         S.y = gy;
         var sl = slopeAt(S.x / PPM);
@@ -967,7 +968,7 @@
         S.stallX = mNow; S.stallT = 0;
       }
       S.x += S.vx;
-      S.y = groundY(S.x / PPM);
+      S.y = bodenY(S.x / PPM, S.z);
       merkeSpur(S.x / PPM, S.z);
       // Staub nach Tempo und Untergrund
       // Schneefahne: ab halbem Tempo kommt ein zweiter Schwung dazu, damit
@@ -991,6 +992,12 @@
     S.vz += (ziel - S.vz) * folge;
     if (S.vz > vmax) S.vz = vmax;
     if (S.vz < -vmax) S.vz = -vmax;
+    // Die Wanne zieht zurueck in die Mitte. Erst nach dem Lenken, sonst
+    // frisst die Zielgeschwindigkeit des Fingers die Kraft wieder auf.
+    if (S.phase === "slide") {
+      S.qn = querNeigung(S.x / PPM, S.z);
+      S.vz -= S.qn * BANK_A;
+    } else S.qn = 0;
     S.z += S.vz;
     if (S.z < -HALFW) { S.z = -HALFW; S.vz = 0; }
     if (S.z > HALFW) { S.z = HALFW; S.vz = 0; }
@@ -1011,7 +1018,7 @@
     // Hindernisse aus der Zeichenliste. Im Flug zaehlt zusaetzlich die Hoehe:
     // ueber den Baumwipfeln fliegt man frei darueber hinweg.
     var pm = S.x / PPM;
-    var hoehe = -S.y / PPM - groundM(pm);
+    var hoehe = -S.y / PPM - bodenM(pm, S.z);
     for (var si = 0; si < solidsN; si++) {
       var so = solids[si];
       if (so.id === S.lastTree) continue;
@@ -1835,6 +1842,29 @@
   }
   function isPath(x, z) { return pathDist(x, z) < pathW(x); }
 
+  // --- Die Bahn liegt in einer Wanne ---
+  // Wie ein Snake Run beim Skaten: in der Mitte flach, zu den Raendern zieht
+  // es hoch. Man kann die Wand hochfahren und kommt von selbst zurueck.
+  // Quadratisch, damit die Mitte flach bleibt und es erst aussen steil wird.
+  var WANNE = 0.30;        // Wandhoehe als Anteil der halben Bahnbreite
+  var WANNE_MAX = 5.5;     // Deckel, damit die breiten Abschnitte keine Schlucht werden
+  var WANNE_AUS = 0.6;     // wie weit die Wand ausserhalb der Bahn wieder abfaellt
+  function wanneY(x, z) {
+    var pw = pathW(x);
+    var d = pathDist(x, z) / pw;
+    if (d >= 1 + WANNE_AUS) return 0;
+    var h = Math.min(WANNE_MAX, pw * WANNE);
+    if (d <= 1) return h * d * d;
+    var t = (d - 1) / WANNE_AUS;
+    return h * (1 - t * t);                      // aussen weich auf null
+  }
+  // Boden mit Wanne. groundM() bleibt das Laengsprofil der Strecke.
+  function bodenM(x, z) { return groundM(x) + wanneY(x, z); }
+  function bodenY(x, z) { return -bodenM(x, z) * PPM; }
+  // Quergefaelle an einer Stelle: daraus kommt die Kraft, die zurueck in die
+  // Mitte zieht, und die Schraeglage von Anton.
+  function querNeigung(x, z) { return (wanneY(x, z + 1.2) - wanneY(x, z - 1.2)) / 2.4; }
+
   function isRoad(x, z) {
     var zo = zoneAt(x);
     if (zo === "allee") return Math.abs(z) < 9 || Math.abs(Math.abs(z) - 74) < 7;
@@ -1872,9 +1902,9 @@
         // die Physik bleiben unberuehrt, die Bahn faehrt sich weiter glatt.
         if (pdT > pwT - 5 && pdT < pwT + 11) {
           var rim = (pdT - (pwT - 5)) / 16;
-          bump += Math.sin(rim * Math.PI) * 0.8;
+          bump += Math.sin(rim * Math.PI) * 0.35;   // kleiner, die Wanne traegt jetzt die Silhouette
         }
-        var y = gy - (inside ? 0 : 1.6) + bump;
+        var y = gy - (inside ? 0 : 1.6) + bump + (inside ? wanneY(x, z) : 0);
         tPos[k] = x; tPos[k + 1] = y; tPos[k + 2] = z;
         tUv[(k / 3) * 2] = x / 9; tUv[(k / 3) * 2 + 1] = z / 9;
         // Cartoon: wenige, klar getrennte Helligkeitswerte statt feiner
@@ -2408,7 +2438,7 @@
       var frisch = k / (n - 1);                     // 1 = direkt hinter Anton
       var breit = 0.62 + frisch * 0.92;
       var nx = -dz / L * breit, nz = dm / L * breit;
-      var y = groundM(p.m) + 0.04;
+      var y = bodenM(p.m, p.z) + 0.04;
       var o = i * 6;
       spurPos[o] = p.m + nx; spurPos[o + 1] = y; spurPos[o + 2] = p.z + nz;
       spurPos[o + 3] = p.m - nx; spurPos[o + 4] = y; spurPos[o + 5] = p.z - nz;
@@ -2857,7 +2887,7 @@
     var aiming = S.phase === "aim";
 
     // Kamera starr hinter Anton – Glättung nur seitlich, sonst verliert sie ihn
-    var gNow = groundM(mNow);
+    var gNow = bodenM(mNow, zNow);
     var aim0 = aiming;
     var back = aim0 ? 15 : 14.5;
     camPos.x = mNow - back;
@@ -2871,7 +2901,7 @@
     } else {
       var la = mNow + 22;
       camLook.x = la;
-      camLook.y = yNow * 0.3 + groundM(la) * 0.7 + 1.0;
+      camLook.y = yNow * 0.3 + bodenM(la, zNow) * 0.7 + 1.0;
       camLook.z = zNow;
     }
 
@@ -2986,7 +3016,7 @@
       arcDots.forEach(function (d) { d.visible = false; });
       anton.position.set(mNow, yNow + 0.1, zNow);
       if (blob) {
-        var bg = groundM(mNow), h = Math.max(0, yNow - bg);
+        var bg = bodenM(mNow, zNow), h = Math.max(0, yNow - bg);
         var sh = Math.max(0.28, 1 - h / 26);
         blob.position.set(mNow, bg + 0.06, zNow);
         blob.scale.set(sh, sh, 1);
@@ -3048,7 +3078,9 @@
         anton.userData.body.rotation.z = 0.15 + zuck * 0.55;
         anton.userData.body.position.y = 0.34 - zuck * 0.1;
       }
-      var lean = Math.max(-0.5, Math.min(0.5, -S.vz * 6.9));
+      // Schraeglage: aus der Querbewegung und aus der Wand, auf der er steht.
+      // Ohne das zweite stuende er auf der Wanne senkrecht wie ein Zinnsoldat.
+      var lean = Math.max(-0.5, Math.min(0.5, -S.vz * 6.9 - (S.qn || 0) * 0.45));
       var pitch = S.phase === "fly" ? Math.max(-0.5, Math.min(0.7, S.vy * 0.69 - S.pitch * 0.22)) : 0;
       anton.rotation.set(pitch, 0, lean);
       ringMesh.rotation.z += S.vx * 0.1875;
@@ -3188,7 +3220,8 @@
         if (Math.abs(pc - camPos.z) > 95) continue;
         [-1, 1].forEach(function (sgn) {
           var po = take("pole");
-          if (po) po.position.set(px, groundM(px), pc + sgn * (pathW(px) + 1.5));
+          var pz = pc + sgn * (pathW(px) + 1.5);
+          if (po) po.position.set(px, bodenM(px, pz), pz);
           // Schneewall am Bahnrand – gibt der Piste eine Kante statt einer leeren Fläche
           var dr = take("drift");
           if (dr) {
@@ -3196,13 +3229,15 @@
             // Wall neben der Bahn, nicht darauf. Vorher lag die Mitte bei
             // pathW + 3.2 bei einem Halbmesser bis 3.9 - die Wehe griff auf die
             // Piste ueber, und auf dem Handy sass Anton mitten im Schneehaufen.
-            dr.position.set(px + h4 * 16, groundM(px) - 0.55, pc + sgn * (pathW(px) + 5.0 + h4 * 3.0));
+            var dz1 = pc + sgn * (pathW(px) + 5.0 + h4 * 3.0);
+            dr.position.set(px + h4 * 16, bodenM(px, dz1) - 0.55, dz1);
             dr.scale.set(5.5 + h4 * 9, 0.7 + h4 * 0.55, 1.6 + h4 * 1.2);
           }
           var dr2 = take("drift");
           if (dr2 && (Math.round(px / 22) % 2) === 0) {
             var h5 = rnd(px * 0.71 + pi * 5.3 + sgn * 2);
-            dr2.position.set(px + h5 * 14, groundM(px) - 0.3, pc + sgn * (pathW(px) + 11 + h5 * 7));
+            var dz2 = pc + sgn * (pathW(px) + 11 + h5 * 7);
+            dr2.position.set(px + h5 * 14, bodenM(px, dz2) - 0.3, dz2);
             dr2.scale.set(3 + h5 * 5, 0.5 + h5 * 0.7, 1.6 + h5 * 3);
           }
         });
@@ -3221,7 +3256,8 @@
         var mg = take("mogul");
         if (!mg) break;
         var r2 = rnd(mx * 0.91 + mi * 2.3);
-        mg.position.set(mx + r2 * 7, groundM(mx) - 0.24, mc + (r1 * 2 - 0.7) * pathW(mx) * 0.85);
+        var mz = mc + (r1 * 2 - 0.7) * pathW(mx) * 0.85;
+        mg.position.set(mx + r2 * 7, bodenM(mx, mz) - 0.24, mz);
         mg.scale.set(1.2 + r2 * 1.7, 0.36 + r1 * 0.22, 0.9 + r1 * 1.2);
       }
     }
@@ -3235,7 +3271,7 @@
         if (Math.abs(tc - camPos.z) > 80) continue;
         var tk = take("track");
         if (!tk) break;
-        tk.position.set(tx2, groundM(tx2) + 0.22, tc);
+        tk.position.set(tx2, bodenM(tx2, tc) + 0.22, tc);
         tk.rotation.z = (pathCenter(ti, tx2 + 12) - tc) / 12;
         tk.scale.set(1, (2 * pathW(tx2) - 3) / (2 * PATH_W_MAX - 3), 1);
       }
@@ -3252,7 +3288,8 @@
     // Münzen, Rampen, Hindernisse, Häuser
     objectsBetween(camPos.x - 20, camPos.x + VIEW).forEach(function (o) {
       if (o.gone) return;
-      var gy = groundM(o.m);
+      // Alles auf der Bahn liegt in der Wanne, sonst schwebt oder versinkt es
+      var gy = bodenM(o.m, o.z);
       if (o.type === "coin" || o.type === "coins" || o.type === "pile") {
         var n = o.type === "coin" ? 1 : o.type === "coins" ? 3 : 7;
         for (var i = 0; i < n; i++) {
@@ -3308,7 +3345,7 @@
     var g = take("bldg");
     if (!g) return;
     addSolid(x, z, Math.max(w, d) * 0.42, h + roof, 1);
-    g.position.set(x, groundM(x), z);
+    g.position.set(x, bodenM(x, z), z);
     g.userData.b.scale.set(d, h, w);
     g.userData.b.position.y = h / 2;
     g.userData.r.scale.set(d + 0.8, roof, w + 0.8);
@@ -3317,7 +3354,7 @@
   }
 
   function scenery(x, z) {
-    var gy = groundM(x);
+    var gy = bodenM(x, z);
     var zo = zoneAt(x);
     var h = rnd(x * 0.37 + z * 0.13);
     var h2 = rnd(x * 0.91 + z * 0.29);
@@ -3528,7 +3565,7 @@
     for (; di < arcDots.length; di++) arcDots[di].visible = false;
     if (land) {
       landRing.visible = true;
-      landRing.position.set(land, groundM(land) + 0.12, lz);
+      landRing.position.set(land, bodenM(land, lz) + 0.12, lz);
       el.aimLabel.textContent = Math.round(land) + " m";
       el.aimLabel.hidden = false;
     } else {
