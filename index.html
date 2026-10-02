@@ -60,22 +60,34 @@
   #wrap { position: relative; width: 100%; height: 100%; overflow: hidden; }
   canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
+  /* Kopfzeile nach dem Vorbild: die Weite steht gross und weiss mitten im
+     Bild, nicht als beschriftete Kennzahl in der Ecke. Daneben eine Pille
+     mit dem Muenzstand. */
   .hud {
     position: absolute; left: 0; right: 0;
     top: env(safe-area-inset-top, 0px);
-    padding: 10px 16px;
-    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 10px 16px; height: 0;
     pointer-events: none;
     font-variant-numeric: tabular-nums;
   }
-  .hud .stat {
-    color: #10304f;
-    text-shadow: 0 1px 0 rgba(255,255,255,.7), 0 2px 12px rgba(255,255,255,.55);
+  .hud .dist {
+    position: absolute; left: 0; right: 0; top: 14px; text-align: center;
+    font-family: var(--display); font-size: 30px; line-height: 1; color: #fff;
+    text-shadow: 0 2px 0 rgba(16,48,79,.55), 0 0 14px rgba(16,48,79,.35);
+    letter-spacing: .01em;
   }
-  .hud .num { font-family: var(--display); font-size: 26px; line-height: 1; }
-  .hud .lab { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #3c6287; margin-top: 3px; }
-  .hud .right { text-align: right; }
-  .hud .coins { color: #a5700c; }
+  .hud .pille {
+    position: absolute; left: 16px; top: 10px;
+    display: flex; align-items: center; gap: 7px;
+    background: rgba(12,28,46,.52); border-radius: 99px; padding: 5px 13px 5px 7px;
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .hud .pille b { font-family: var(--display); font-size: 17px; color: #fff; }
+  .hud .mz {
+    width: 17px; height: 17px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 32%, #ffe08a, #e8a81f 72%, #b8780d);
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.45);
+  }
 
   /* Temporing unten links, nach dem Vorbild aus Sled Surfers */
   .tempo {
@@ -121,16 +133,21 @@
   }
 
   /* Steuerring: zeigt, wo der Finger steht */
+  /* Steuerring: im Vorbild gross und deutlich, sonst weiss man beim ersten
+     Mal nicht, dass man mit dem Finger lenkt. */
   .stick {
-    position: absolute; width: 104px; height: 104px; margin: -52px 0 0 -52px;
-    border: 2.5px solid rgba(255,255,255,.55); border-radius: 50%;
+    position: absolute; width: 148px; height: 148px; margin: -74px 0 0 -74px;
+    border: 4px solid rgba(255,255,255,.7); border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(16,48,79,.12), inset 0 0 0 2px rgba(16,48,79,.1);
     pointer-events: none; opacity: 0; transition: opacity .12s;
   }
   .stick.an { opacity: 1; }
+  .stick.ruhe { opacity: .42; }
   .stick i {
-    position: absolute; left: 50%; top: 50%; width: 30px; height: 30px;
-    margin: -15px 0 0 -15px; border-radius: 50%;
-    background: rgba(255,255,255,.75);
+    position: absolute; left: 50%; top: 50%; width: 46px; height: 46px;
+    margin: -23px 0 0 -23px; border-radius: 50%;
+    background: rgba(124,196,240,.92);
+    box-shadow: 0 2px 8px rgba(16,48,79,.3), inset 0 -3px 0 rgba(16,48,79,.12);
   }
 
   /* Aufsteigende Bonus-Einblendungen */
@@ -359,13 +376,15 @@
     font-size: 17px; padding: 7px 14px; border-radius: 10px; pointer-events: none;
     font-variant-numeric: tabular-nums;
   }
+  /* Runder Knopf mit Pfeil, wie im Vorbild - spart Platz und ist auf jeder
+     Sprache gleich verstaendlich. */
   .restart {
-    position: absolute; right: 12px;
-    top: calc(52px + env(safe-area-inset-top, 0px));
-    z-index: 5; border: 0; border-radius: 99px;
-    background: rgba(12,28,46,.55); color: #f4f7fa;
-    font: inherit; font-size: 12px; font-weight: 700;
-    padding: 8px 14px; cursor: pointer; -webkit-backdrop-filter: blur(4px);
+    position: absolute; right: 14px;
+    top: calc(14px + env(safe-area-inset-top, 0px));
+    z-index: 5; border: 0; border-radius: 50%;
+    width: 44px; height: 44px; line-height: 1;
+    background: rgba(12,28,46,.52); color: #f4f7fa;
+    font: inherit; font-size: 23px; cursor: pointer; -webkit-backdrop-filter: blur(4px);
   }
   .restart:active { background: rgba(12,28,46,.8); }
   .nowebgl {
@@ -391,8 +410,8 @@
 <div id="wrap">
   <canvas id="c"></canvas>
   <div class="hud">
-    <div class="stat"><div class="num" id="hDist">0 m</div><div class="lab">Weite</div></div>
-    <div class="stat right"><div class="num coins" id="hCoins">0</div><div class="lab">Münzen</div></div>
+    <div class="pille"><i class="mz"></i><b id="hCoins">0</b></div>
+    <div class="dist" id="hDist">0 m</div>
   </div>
   <div class="aimlabel" id="aimLabel" hidden></div>
   <div class="aimbar" id="aimBar" hidden>
@@ -416,7 +435,7 @@
   <div class="stick" id="stick"><i id="stickDot"></i></div>
   <div class="bonus" id="bonus"></div>
   <div class="fuelbar" id="fuelBar" hidden><i id="fuelFill"></i></div>
-  <button class="restart" id="restart" hidden>Neu starten</button>
+  <button class="restart" id="restart" hidden aria-label="Neu starten">&#8635;</button>
   <div class="banner" id="banner"><b id="bTitle"></b><span id="bSub"></span></div>
   <div class="sheet" id="sheet" hidden></div>
 </div>
@@ -431,6 +450,12 @@
   var AIR = 0.999802993;        // Luftwiderstand pro Schritt
   var STEP = 1000 / 60;
   var HALFW = 220;          // halbe Weltbreite in Metern           // halbe Pistenbreite in Metern
+  // Kamera: Abstand, Hoehe, Blickpunkt nach vorn. Mit ?kam=20,6,30 am echten
+  // Geraet probierbar.
+  var KAM = (function () {
+    var m = /[?&]kam=([0-9.]+),([0-9.]+),([0-9.]+)/.exec(location.search);
+    return m ? [+m[1], +m[2], +m[3]] : [20, 6.0, 30];
+  })();
   var BANK_A = 0.022;             // wie stark die Wanne zurueck in die Mitte zieht
   var STEER = 0.007695;     // seitliche Beschleunigung
   var VZMAX = 0.1215;        // seitliches Tempo
@@ -1133,6 +1158,19 @@
 
   function updateHud() {
     if (el.rush) el.rush.style.opacity = S.turbo > 0 ? "1" : "0";
+    // Steuerring auch in Ruhe zeigen, unten mittig. Im Vorbild liegt er
+    // staendig da - sonst weiss man beim ersten Mal nicht, dass man mit dem
+    // Finger lenkt, und sucht nach Knoepfen.
+    if (el.stick) {
+      var faehrt = S.phase === "fly" || S.phase === "slide";
+      var ruht = faehrt && !S.held;
+      el.stick.classList.toggle("ruhe", ruht);
+      if (ruht) {
+        el.stick.style.left = (W / 2) + "px";
+        el.stick.style.top = (H - 128) + "px";
+        el.stickDot.style.transform = "translate(0px, 0px)";
+      }
+    }
     // Tempo in km/h: Pixel je Bild -> Meter je Sekunde -> km/h
     if (el.tempo) {
       var kmh = Math.round(Math.abs(S.vx) / PPM * 60 * 3.6);
@@ -3014,9 +3052,13 @@
     // Kamera starr hinter Anton – Glättung nur seitlich, sonst verliert sie ihn
     var gNow = bodenM(mNow, zNow);
     var aim0 = aiming;
-    var back = aim0 ? 15 : 14.5;
+    // Weiter zurueck und hoeher als frueher. Im Vorbild fuellt die Figur etwa
+    // ein Fuenftel der Bildbreite und sitzt knapp ueber der Bildmitte; bei uns
+    // war sie ein Viertel breit und sass deutlich tiefer. Dadurch sah man zu
+    // wenig von der Strecke, und schnell wirkte es trotzdem nicht.
+    var back = aim0 ? 15 : KAM[0];
     camPos.x = mNow - back;
-    camPos.y = Math.max(gNow, yNow) + (aim0 ? 2.5 : 4.2);
+    camPos.y = Math.max(gNow, yNow) + (aim0 ? 2.5 : KAM[1]);
     var tz = zNow;
     if (S.phase === "menu" || aim0) camPos.z = tz;
     else camPos.z += (tz - camPos.z) * 0.5;
@@ -3024,7 +3066,7 @@
     if (aim0) {
       camLook.x = mNow + 13; camLook.y = gNow + 2.6; camLook.z = -1.2;
     } else {
-      var la = mNow + 22;
+      var la = mNow + KAM[2];
       camLook.x = la;
       camLook.y = yNow * 0.3 + bodenM(la, zNow) * 0.7 + 1.0;
       camLook.z = zNow;

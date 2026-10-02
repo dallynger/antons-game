@@ -243,6 +243,14 @@ seitlich, der Wind dreht langsam mit der Position. Die Nebelbank rechnet auf
 den Werten der Leistungsstufe (`fogNahBasis`, `fogFernBasis`) und verändert die
 Stufe selbst nicht.
 
+**Kamera und Anzeigen folgen dem Vorbild.** Kamera 20 m zurück, 6 m hoch,
+Blickpunkt 30 m voraus (`KAM`, am Gerät mit `?kam=20,6,30` probierbar). Vorher
+stand sie 14,5 m zurück und 4,2 m hoch — Anton füllte ein Viertel der
+Bildbreite und man sah zu wenig Strecke. Die Anzeigen: Weite groß und weiß
+mitten oben, Münzen als Pille links, Neustart als runder Pfeilknopf rechts,
+Temporing links unten, Fortschrittsband rechts, Steuerring unten mittig — der
+liegt jetzt auch in Ruhe da, sonst sucht man beim ersten Mal nach Knöpfen.
+
 **Farbe wird gemessen, nicht geschaetzt.** Das Vorbild hat einen Boden bei
 r187 g220 b238, also **50 Punkte mehr Blau als Rot**. Unserer lag bei +7 bis
 +14 — fast neutrales Grau, und genau das heißt „trist“. Jetzt +37 bis +40.
