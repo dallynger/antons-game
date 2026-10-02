@@ -243,6 +243,31 @@ seitlich, der Wind dreht langsam mit der Position. Die Nebelbank rechnet auf
 den Werten der Leistungsstufe (`fogNahBasis`, `fogFernBasis`) und verändert die
 Stufe selbst nicht.
 
+**Farbe wird gemessen, nicht geschaetzt.** Das Vorbild hat einen Boden bei
+r187 g220 b238, also **50 Punkte mehr Blau als Rot**. Unserer lag bei +7 bis
++14 — fast neutrales Grau, und genau das heißt „trist“. Jetzt +37 bis +40.
+Wer an Schnee, Licht oder Tonwerten dreht, misst nach: Bild aufnehmen, untere
+60 % mitteln, `b - r` ansehen.
+
+Drei Dinge fressen das Blau, alle drei sind hier schon einmal zugeschnappt:
+
+1. **sRGB staucht oben.** Der Renderer gibt in sRGB aus. Aus linearem
+   0.76/0.91/1.00 wird 227/245/255, also nur +28. Eine satte Farbe im Bild
+   braucht eine *dunklere, weiter gespreizte* Zahl im Code — `SURF[0]` steht
+   deshalb bei 0.52/0.73/0.88 und nicht bei 0.9 irgendwas.
+2. **Warmes Licht.** Eine gelbe Sonne (0xffcf96) frisst das Blau aus dem
+   Schnee. Am Tag ist das Licht neutral bis kühl; warm bleibt nur der Abend
+   am Buga-See.
+3. **Faktoren über 1.** Blau liegt am nächsten an der Obergrenze und wird als
+   erstes abgeschnitten — danach ist die Fläche grau. Die Helligkeitsstufen
+   bleiben unter 1, die Bahn hebt sich über den dunkleren Rand ab statt über
+   Überhelligkeit.
+
+**Warme Flecken.** Felsen sind Sandstein (0x8a6a4b) mit Schneehaube, dazu
+selten ein Schneemann mit rotem Hut und blauem Schal an der Bahn. Im Vorbild
+ist der braune Fels der einzige warme Fleck im kalten Bild, und daran hängt
+die Tiefe. Passt hier doppelt: der Herkules ist aus Kasseler Sandstein.
+
 **Die Bahn liegt in einer Wanne.** Wie ein Snake Run beim Skaten: in der Mitte
 flach, zu den Rändern zieht es hoch. `wanneY(x, z)` gibt die Höhe über dem
 Längsprofil, quadratisch über dem Abstand zur Bahnmitte, Wandhöhe 30 % der
