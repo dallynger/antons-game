@@ -264,7 +264,13 @@ Drei Dinge fressen das Blau, alle drei sind hier schon einmal zugeschnappt:
    Überhelligkeit.
 
 **Warme Flecken.** Felsen sind Sandstein (0x8a6a4b) mit Schneehaube, dazu
-selten ein Schneemann mit rotem Hut und blauem Schal an der Bahn. Im Vorbild
+selten ein Schneemann mit rotem Hut und blauem Schal an der Bahn.
+**Requisiten** stehen direkt an der Bahnkante (pathW + 3): Seilabsperrung mit
+grünem Seil, Liegestuhl in wechselnder Farbe, Wimpel am Mast, in der Stadt
+eine Glühweinbude mit rot-weißem Dach. Sie laufen über dieselbe Schleife wie
+Pistenstangen und Schneewehen, nicht über die Streuung — in der Streuung
+hängt die Lage am selben Zufallswert wie die Auswahl, und in einem zwei Meter
+breiten Streifen landete dann fast nie etwas. Im Vorbild
 ist der braune Fels der einzige warme Fleck im kalten Bild, und daran hängt
 die Tiefe. Passt hier doppelt: der Herkules ist aus Kasseler Sandstein.
 
@@ -321,6 +327,16 @@ ausdrücklich in voller Größe anlegen.
 **`frustumCulled = false` ist bei `InstancedMesh` Pflicht.** Die Hülle wird nur
 aus der Geometrie berechnet, nicht aus den Instanzpositionen — sonst
 verschwindet alles, sobald der Ursprung aus dem Bild läuft.
+
+**Zwei Dinge dürfen nicht am selben Wurf hängen.** Bei den Requisiten
+entschied erst *ein* Zufallswert sowohl über „steht hier etwas“ als auch
+über „was steht hier“. Die Schwellen multiplizierten sich, und die
+Seilabsperrung kam in einem von hundert Fällen vor — also nie. Auswahl und
+Häufigkeit brauchen getrennte Würfe.
+
+**Requisiten im Maßstab der Welt.** Ein Liegestuhl mit 1,5 m ist neben Bäumen
+von 8 m und Schanzen von 7,5 m ein Punkt. Alles, was auffallen soll, wird
+hochskaliert — und nicht dorthin gestellt, wo schon eine Schneewehe liegt.
 
 **Pools, die ausgehen.** `take()` zählt jetzt mit (`poolMiss`), unter `?debug`
 auslesbar. Bei Dichteänderungen prüfen — und nicht nur bei Dichte: als jede

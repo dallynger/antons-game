@@ -2765,6 +2765,72 @@
       { geo: new TH.BoxGeometry(0.5, 0.12, 1.8), mat: holzMat, py: 0.5, cast: true, kontur: 0.15 },
       { geo: new TH.BoxGeometry(0.12, 0.6, 1.8), mat: holzMat, px: -0.2, py: 0.8, cast: true, kontur: 0.15 }
     ]);
+
+    // ---------- Requisiten ----------
+    // Im Vorbild steht alle paar Sekunden etwas kraeftig Farbiges am Weg:
+    // Seilabsperrung, Liegestuhl, Bude. Das ist der Unterschied zwischen
+    // einer Landschaft und einer Strecke, auf der jemand lebt. Alle liegen
+    // quer zur Fahrtrichtung, damit man sie im Vorbeifahren wirklich sieht.
+
+    // Seilabsperrung: zwei Pfosten, dazwischen ein durchhaengendes Seil
+    var seilMat = mat(0x3f8f55, false);
+    var pfostenMat = mat(0x6b4e32);
+    poolInstGroup("seil", 20, [
+      { geo: new TH.CylinderGeometry(0.13, 0.15, 1.5, 6), mat: pfostenMat, pz: -3.2, py: 0.75, cast: true, kontur: 0.12 },
+      { geo: new TH.CylinderGeometry(0.13, 0.15, 1.5, 6), mat: pfostenMat, pz: 3.2, py: 0.75, cast: true, kontur: 0.12 },
+      { geo: new TH.SphereGeometry(0.2, 7, 5), mat: mat(0x9aa6b2), pz: -3.2, py: 1.56, kontur: 0.1 },
+      { geo: new TH.SphereGeometry(0.2, 7, 5), mat: mat(0x9aa6b2), pz: 3.2, py: 1.56, kontur: 0.1 },
+      { geo: new TH.CylinderGeometry(0.09, 0.09, 2.3, 5), mat: seilMat, pz: -2.2, py: 1.26, rx: Math.PI / 2 + 0.17, cast: true, kontur: 0.1 },
+      { geo: new TH.CylinderGeometry(0.09, 0.09, 2.2, 5), mat: seilMat, pz: 0, py: 1.02, rx: Math.PI / 2, cast: true, kontur: 0.1 },
+      { geo: new TH.CylinderGeometry(0.09, 0.09, 2.3, 5), mat: seilMat, pz: 2.2, py: 1.26, rx: Math.PI / 2 - 0.17, cast: true, kontur: 0.1 }
+    ]);
+
+    // Liegestuhl: Gestell aus Holz, Bespannung je Stuhl in einer anderen Farbe
+    poolInstGroup("stuhl", 24, [
+      { geo: new TH.CylinderGeometry(0.06, 0.06, 1.1, 5), mat: pfostenMat, px: -0.35, py: 0.5, pz: -0.45, rz: 0.3, cast: true, kontur: 0.08 },
+      { geo: new TH.CylinderGeometry(0.06, 0.06, 1.1, 5), mat: pfostenMat, px: -0.35, py: 0.5, pz: 0.45, rz: 0.3, cast: true, kontur: 0.08 },
+      { geo: new TH.CylinderGeometry(0.06, 0.06, 1.0, 5), mat: pfostenMat, px: 0.4, py: 0.45, pz: -0.45, rz: -0.5, cast: true, kontur: 0.08 },
+      { geo: new TH.CylinderGeometry(0.06, 0.06, 1.0, 5), mat: pfostenMat, px: 0.4, py: 0.45, pz: 0.45, rz: -0.5, cast: true, kontur: 0.08 },
+      { geo: new TH.BoxGeometry(1.5, 0.07, 0.95), mat: mat(0xffffff), col: 0xd94a8f, py: 0.82, rz: 0.42, cast: true, tint: true, kontur: 0.09 }
+    ]);
+
+    // Gluehweinbude: Holzstand mit rot-weissem Dach - Kasseler Weihnachtsmarkt
+    poolInstGroup("bude", 12, [
+      { geo: new TH.BoxGeometry(2.2, 2.1, 3.4), mat: mat(0x8a6342), py: 1.05, cast: true, kontur: 0.14 },
+      { geo: new TH.BoxGeometry(2.0, 0.5, 3.2), mat: mat(0x2f4258), py: 2.3, kontur: 0.12 },
+      { geo: new TH.BoxGeometry(3.0, 0.26, 4.0), mat: mat(0xd43f3f), py: 2.72, cast: true, kontur: 0.14 },
+      { geo: new TH.BoxGeometry(3.05, 0.2, 1.0), mat: mat(0xf4f7fa), py: 2.73, pz: -1.1, kontur: 0.14 },
+      { geo: new TH.BoxGeometry(3.05, 0.2, 1.0), mat: mat(0xf4f7fa), py: 2.73, pz: 1.1, kontur: 0.14 }
+    ]);
+
+    // Wimpel am Mast, Farbe je Mast verschieden
+    poolInstGroup("wimpel", 30, [
+      { geo: new TH.CylinderGeometry(0.07, 0.09, 4.4, 5), mat: mat(0xb9c4cf), py: 2.2, cast: true, kontur: 0.11 },
+      { geo: new TH.BoxGeometry(0.1, 0.95, 1.5), mat: mat(0xffffff), col: 0xf0a52e, py: 3.7, pz: 0.78, cast: true, tint: true, kontur: 0.1 }
+    ]);
+  }
+
+  // Kraeftige Farben fuer die Requisiten. Fest an der Position, damit ein
+  // Liegestuhl nicht bei jedem Bild die Farbe wechselt.
+  var BUNT = [0xd94a8f, 0xf0a52e, 0x3f8f55, 0x2f7fd0, 0xd43f3f, 0x8b5cc7];
+  // Welche Requisite wo steht. Die Schwellen sind so gesetzt, dass alle paar
+  // hundert Meter etwas kommt - haeufiger wirkt es vollgestellt, seltener
+  // faellt es nicht mehr auf.
+  function requisit(x, gy, z, zo, wahl, dreh, farbe) {
+    var stadt = (zo === "allee" || zo === "westen" || zo === "innenstadt");
+    var o, art = stadt ? (wahl < 0.4 ? "bude" : "wimpel")
+                       : (wahl < 0.38 ? "seil" : wahl < 0.72 ? "stuhl" : "wimpel");
+    o = take(art);
+    if (!o) return;
+    o.position.set(x, gy, z);
+    o.rotation.y = art === "seil" ? (dreh - 0.5) * 0.5
+                 : art === "bude" ? (dreh - 0.5) * 0.8 : dreh * 6.3;
+    o.scale.setScalar(art === "stuhl" ? 2.0 : art === "seil" ? 1.9 : art === "bude" ? 1.5 : 1.6);
+    if (art === "stuhl" || art === "wimpel") faerbe(o, farbe);
+  }
+  function faerbe(o, h) {
+    var c = BUNT[Math.floor(h * BUNT.length) % BUNT.length];
+    o.userData.parts.forEach(function (t) { t.material.color.setHex(c); });
   }
 
   function lmBox(x, y, z, w, h, d, color) {
@@ -3292,6 +3358,19 @@
             dr.position.set(px + h4 * 16, bodenM(px, dz1) - 0.55, dz1);
             dr.scale.set(5.5 + h4 * 9, 0.7 + h4 * 0.55, 1.6 + h4 * 1.2);
           }
+          // Requisiten an der Bahnkante. Hier statt in der Streuung, weil dort
+          // die Lage am selben Zufallswert haengt wie die Auswahl - in einem
+          // zwei Meter breiten Streifen landete dann fast nie etwas.
+          var hr = rnd(px * 0.37 + pi * 7.1 + sgn * 3.7);
+          if (hr > 0.86) {
+            // Zweiter, unabhaengiger Wurf fuer die Auswahl. Beim ersten Versuch
+            // hing beides am selben Wert - dann kam die Seilsperre nur in
+            // einem von hundert Faellen vor und war praktisch nie zu sehen.
+            var hw = rnd(px * 0.91 + pi * 1.7 + sgn * 5.3);
+            var rz0 = pc + sgn * (pathW(px) + 3.0);
+            requisit(px + hr * 9, bodenM(px, rz0), rz0, zoneAt(px),
+                     hw, rnd(px * 1.13 + sgn), rnd(px * 0.61 + pi * 2.3));
+          }
           var dr2 = take("drift");
           if (dr2 && (Math.round(px / 22) % 2) === 0) {
             var h5 = rnd(px * 0.71 + pi * 5.3 + sgn * 2);
@@ -3485,7 +3564,7 @@
       }
       if (h > 0.96) { var bn = take("bench"); if (bn) bn.position.set(x, gy, z); }
       // Schneemann dicht an der Bahn, damit man ihn im Vorbeifahren sieht
-      if (h2 > 0.975 && pd < pw + 26) {
+      if (h2 > 0.975 && pd > pw + 16 && pd < pw + 30) {
         var sm = take("schneemann");
         if (sm) {
           sm.position.set(tx, gy, tz);
@@ -3552,7 +3631,7 @@
         }
       }
       if (h > 0.88) { var b2 = take("bench"); if (b2) b2.position.set(x, gy, z); }
-      if (h2 > 0.98 && pd < pw + 22) {
+      if (h2 > 0.98 && pd > pw + 16 && pd < pw + 28) {
         var sm2 = take("schneemann");
         if (sm2) {
           sm2.position.set(tx, gy, tz); sm2.rotation.y = h * 6.3;
