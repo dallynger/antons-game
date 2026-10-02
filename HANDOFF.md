@@ -271,6 +271,19 @@ Drei Dinge fressen das Blau, alle drei sind hier schon einmal zugeschnappt:
    bleiben unter 1, die Bahn hebt sich über den dunkleren Rand ab statt über
    Überhelligkeit.
 
+**Was auf der Bahn liegt und was daneben steht.** Auf der Bahn liegen nur
+Dinge, die man *haben will*: Münzen, Schanzen, Blitze. Es gibt dort **keine
+Hindernisse** mehr — früher lagen Steine in der Spur, die ohne Vorwarnung
+bremsten, und das war nur ärgerlich. Hindernisse stehen **neben** der Bahn und
+sind damit ausweichbar: Bäume, Häuser, Hütten, Laternen, Bänke, Schneemänner,
+Felsen und die Requisiten. Alle tragen sich beim Zeichnen über `addSolid()`
+ein. Hart (stärkeres Bremsen) sind Häuser, Hütten, Laternen, Buden, Felsen und
+der Herkules; weich sind Bäume, Bänke, Stühle, Wimpel, Seilpfosten.
+
+Verteilung in `chunkObjects()`: Münze 61 %, dreier 18 %, Haufen 12 %,
+**Schanze 4,5 %**, Blitz 4,5 %. Die Schanze stand vorher bei 11 % — das war
+eine alle 23 Meter, man kam gar nicht mehr zum Rutschen.
+
 **Warme Flecken.** Felsen sind Sandstein (0x8a6a4b) mit Schneehaube, dazu
 selten ein Schneemann mit rotem Hut und blauem Schal an der Bahn.
 **Requisiten** stehen direkt an der Bahnkante (pathW + 3): Seilabsperrung mit
