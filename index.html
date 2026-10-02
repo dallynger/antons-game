@@ -1601,18 +1601,22 @@
   // Die Strecke ist 7,8 km lang, da darf sich der Himmel aendern. Vier
   // Stuetzstellen, dazwischen wird gemischt. Alles nur Farben und eine
   // Lichtstaerke - es kostet nichts, wirkt aber auf jedem Meter.
+  // Das Licht ist am Tag neutral bis kuehl. Mit der alten warmen Sonne
+  // (0xffcf96) frass das Gelb das Blau aus dem Schnee: gemessen blieb vom
+  // Blauueberschuss nur +14 statt +50 wie im Vorbild. Warm bleibt nur der
+  // Abend, da soll es auch so aussehen.
   var TAG = [
     { m: 0,    himmelOben: 0x1f4f85, himmelUnten: 0xbcd0e6, dunst: 0x8fb3d4,
-      sonne: 0xffcf96, staerke: 1.06, obenHell: 0x8fb6e2, untenHell: 0x2c4870, hMenge: 0.60,
+      sonne: 0xffe8d2, staerke: 1.26, obenHell: 0x8fb6e2, untenHell: 0x2c4870, hMenge: 0.68,
       scheibe: 0xffe6bc, berg: 0x748fb0, tint: 0.86 },
     { m: 2200, himmelOben: 0x3f7cbb, himmelUnten: 0xe4ecf4, dunst: 0xaecbe4,
-      sonne: 0xfff0d2, staerke: 1.44, obenHell: 0xb2d4f4, untenHell: 0x3b5a80, hMenge: 0.46,
+      sonne: 0xfffaf2, staerke: 1.46, obenHell: 0xb2d4f4, untenHell: 0x3b5a80, hMenge: 0.60,
       scheibe: 0xfff6e2, berg: 0x9db3cc, tint: 1.00 },
     { m: 5200, himmelOben: 0x4a86c4, himmelUnten: 0xf0f4f8, dunst: 0xbcd6ea,
-      sonne: 0xfff8ea, staerke: 1.52, obenHell: 0xc4dcf6, untenHell: 0x42618a, hMenge: 0.44,
+      sonne: 0xffffff, staerke: 1.50, obenHell: 0xc4dcf6, untenHell: 0x42618a, hMenge: 0.58,
       scheibe: 0xffffff, berg: 0xa8bcd2, tint: 1.04 },
     { m: 7800, himmelOben: 0x2f63a6, himmelUnten: 0xffc98a, dunst: 0xd3c6cc,
-      sonne: 0xffb254, staerke: 1.62, obenHell: 0xbfc9e0, untenHell: 0x59496b, hMenge: 0.44,
+      sonne: 0xffb254, staerke: 1.52, obenHell: 0xbfc9e0, untenHell: 0x59496b, hMenge: 0.44,
       scheibe: 0xffc074, berg: 0xa79ab0, tint: 0.94 }
   ];
   // ---------- Wetter ueber die Strecke ----------
@@ -1759,8 +1763,12 @@
       var w = Math.sin(px * 0.7) * Math.sin(py * 0.9) * 5
             + Math.sin(px * 0.21 + py * 0.17) * 8
             + Math.sin(py * (Math.PI * 2 * 7 / n)) * 4.5;
-      var v = 236 + w + (Math.random() - 0.5) * 13;
-      v = Math.max(214, Math.min(255, v));
+      var v = 214 + w + (Math.random() - 0.5) * 16;
+      v = Math.max(190, Math.min(238, v));
+      // Einzelne helle Punkte: das Funkeln im Schnee. Die Textur kann nur
+      // abdunkeln, deshalb liegt das Grundfeld tiefer und nur die Funken
+      // stehen ganz oben.
+      if (Math.random() < 0.025) v = 248 + Math.random() * 7;
       dd[i * 4] = v; dd[i * 4 + 1] = v; dd[i * 4 + 2] = v; dd[i * 4 + 3] = 255;
     }
     g.putImageData(img, 0, 0);
@@ -1802,7 +1810,11 @@
   // stiess im Winterbild hart gegen den Schnee und zog eine Kante quer durchs
   // Bild; jetzt ist es ein angeschneiter Gruenton, der die Bahn trotzdem
   // erkennbar laesst.
-  var SURF = [[0.86, 0.91, 0.99], [0.42, 0.41, 0.44], [0.63, 0.73, 0.66]];
+  // Gemessen gegen das Vorbild: dessen Schnee liegt bei r188 g220 b238, also
+  // 50 Punkte mehr Blau als Rot. Unserer lag bei b-r = 7 bis 13 - fast neutral
+  // und zu hell, dadurch lief alles ins Weisse und wirkte flau. Jetzt dunkler
+  // und klar blau, damit Glitzer, Sonnenkanten und Spur ueberhaupt Platz haben.
+  var SURF = [[0.52, 0.73, 0.88], [0.30, 0.29, 0.32], [0.44, 0.63, 0.62]];
   var ROAD = [0.30, 0.32, 0.36], PAVE = [0.52, 0.55, 0.60], WATER = [0.30, 0.50, 0.70];
 
   // Die Strecke hat Abschnitte mit eigenem Charakter
@@ -1916,7 +1928,9 @@
         // Koernung. Das Rauschen wird auf Stufen gerastert.
         var roh = (Math.sin(x * 0.11 + z * 0.08) * 0.5 + 0.5) * 0.6
                 + (Math.sin(x * 0.037 - z * 0.029) * 0.5 + 0.5) * 0.4;
-        var c, v = 0.92 + Math.round(roh * 3) * 0.045;
+        // Blau liegt bei 1.0 - jeder Faktor ueber 1 schneidet es ab und genau
+        // das macht den Schnee grau. Die Stufen bleiben deshalb unter 1.
+        var c, v = 0.90 + Math.round(roh * 3) * 0.033;
         if (!inside) c = [0.52, 0.63, 0.78];
         else if (isRoad(x, z)) c = Math.abs(z % 62) < 0.7 ? PAVE : ROAD;
         else if (zoneAt(x) === "fulda" && Math.abs(z) < 60) c = WATER;
@@ -1931,10 +1945,10 @@
           var pw = pathW(x);
           // Cartoon: die Bahn hebt sich klar ab statt fein abgestuft zu sein
           if (pd < pw - 9) {
-            v *= 1.16;                                     // praeparierter Kern
+            v *= 1.0;                                      // praeparierter Kern: hell, aber ohne Abschnitt
           } else if (pd < pw + 3) {
             var t = (pd - pw + 9) / 12;                    // 12 m Rand
-            v *= 1.16 - 0.30 * t * t;
+            v *= 1.0 - 0.22 * t * t;
           } else {
             v *= 0.86;
           }
@@ -2464,8 +2478,12 @@
       // Frisch ist die Spur deutlich blauer als der Schnee und laeuft nach
       // hinten gegen Weiss aus. Vorher war sie durchgehend fast weiss und
       // damit unsichtbar.
-      var t = (1 - frisch) * 0.88;
-      var cr = 0.62 * (1 - t) + t, cg = 0.74 * (1 - t) + t, cb = 0.90 * (1 - t) + t;
+      // Im Vorbild ist die Spur ein kraeftiges Blau, deutlich dunkler als der
+      // Schnee, und laeuft nach hinten in den Schneeton aus - nicht nach Weiss.
+      var t = (1 - frisch) * 0.82;
+      var cr = 0.50 * (1 - t) + 0.78 * t,
+          cg = 0.67 * (1 - t) + 0.88 * t,
+          cb = 0.92 * (1 - t) + 0.98 * t;
       for (var v = 0; v < 2; v++) {
         spurCol[o + v * 3] = cr; spurCol[o + v * 3 + 1] = cg; spurCol[o + v * 3 + 2] = cb;
       }
