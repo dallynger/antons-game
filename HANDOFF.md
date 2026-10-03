@@ -284,6 +284,15 @@ Verteilung in `chunkObjects()`: Münze 61 %, dreier 18 %, Haufen 12 %,
 **Schanze 4,5 %**, Blitz 4,5 %. Die Schanze stand vorher bei 11 % — das war
 eine alle 23 Meter, man kam gar nicht mehr zum Rutschen.
 
+**Eisblumen** liegen flach auf der Piste: sechsstrahlige Schneesterne, hellblau
+statt weiß, weil der Pistenkern die hellste Fläche im Bild ist und ein weißer
+Stern darauf spurlos verschwindet. Nur auf der befahrenen Bahn — die
+Zeichenschleife läuft über alle fünf, und die liegen 84 m auseinander.
+
+**Einblendungen** sind große weiße Versalien mit dunkler Kontur mitten im
+Bild, ohne Kasten. Ein Kasten nimmt der Einblendung die Wucht und verdeckt die
+Strecke.
+
 **Warme Flecken.** Felsen sind Sandstein (0x8a6a4b) mit Schneehaube, dazu
 selten ein Schneemann mit rotem Hut und blauem Schal an der Bahn.
 **Requisiten** stehen direkt an der Bahnkante (pathW + 3): Seilabsperrung mit

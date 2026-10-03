@@ -182,9 +182,20 @@
     transition: opacity .25s ease, transform .25s cubic-bezier(.2,1.4,.4,1);
   }
   .banner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
-  .banner { background: rgba(12,28,46,.82); border-radius: 16px; padding: 12px 22px; }
-  .banner b { display: block; font-family: var(--display); font-size: 27px; color: #ff8c52; }
-  .banner span { display: block; font-size: 12px; color: #dbe8f4; letter-spacing: .12em; text-transform: uppercase; margin-top: 3px; }
+  /* Nach dem Vorbild: kein Kasten, sondern grosse weisse Versalien mit
+     dunkler Kontur mitten im Bild. Ein Kasten nimmt der Einblendung die
+     Wucht und verdeckt die Strecke. */
+  .banner { padding: 0 18px; width: max-content; max-width: 86vw; }
+  .banner b {
+    display: block; font-family: var(--display); font-size: 34px; line-height: 1.05;
+    color: #fff; text-transform: uppercase; letter-spacing: .02em;
+    text-shadow: 0 3px 0 rgba(16,48,79,.75), 0 0 18px rgba(16,48,79,.5);
+  }
+  .banner span {
+    display: block; font-size: 13px; color: #ffd27a; letter-spacing: .16em;
+    text-transform: uppercase; margin-top: 6px; font-weight: 700;
+    text-shadow: 0 2px 0 rgba(16,48,79,.7);
+  }
 
   .sheet {
     position: absolute; inset: 0;
@@ -2737,6 +2748,14 @@
     poolInst("drift", 150, new TH.SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2),
              mat(0xdceaf6, false), { receive: true });
 
+    // Eisblumen: kleine Schneesterne, die flach auf der Piste liegen. Im
+    // Vorbild liegen genau solche Aufkleber im Schnee - sie geben der Flaeche
+    // Maszstab und sind das, was den Boden lebendig statt glatt macht.
+    poolInst("eisblume", 60, new TH.PlaneGeometry(1, 1),
+             new TH.MeshBasicMaterial({ map: eisblumenTextur(), transparent: true,
+                                        opacity: 0.85, depthWrite: false }),
+             { renderOrder: 2, setup: function (o) { o.rotation.x = -Math.PI / 2; } });
+
     // Spurrillen auf der Piste – reine Optik, geben das Gefühl von Tempo
     poolInst("track", 120, new TH.PlaneGeometry(2.8, 2 * PATH_W_MAX - 3),
              new TH.MeshBasicMaterial({ color: 0x7f97b3, transparent: true, opacity: 0.09, depthWrite: false }),
@@ -2949,6 +2968,33 @@
     t.needsUpdate = true;
     return t;
   }
+  // Sechsstrahliger Schneestern fuer die Aufkleber auf dem Boden
+  var eisTex = null;
+  function eisblumenTextur() {
+    if (eisTex) return eisTex;
+    var n = 64, cv = document.createElement("canvas");
+    cv.width = cv.height = n;
+    var g = cv.getContext("2d");
+    g.translate(n / 2, n / 2);
+    // Hellblau, nicht weiss: der Pistenkern ist die hellste Flaeche im Bild,
+    // ein weisser Stern verschwindet darauf spurlos.
+    g.strokeStyle = "rgba(150,186,222,0.95)";
+    g.lineCap = "round";
+    for (var a = 0; a < 6; a++) {
+      g.save(); g.rotate(a * Math.PI / 3);
+      g.lineWidth = 4.5; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -26); g.stroke();
+      g.lineWidth = 3;
+      g.beginPath(); g.moveTo(0, -13); g.lineTo(-7, -20); g.stroke();
+      g.beginPath(); g.moveTo(0, -13); g.lineTo(7, -20); g.stroke();
+      g.beginPath(); g.moveTo(0, -21); g.lineTo(-5, -26); g.stroke();
+      g.beginPath(); g.moveTo(0, -21); g.lineTo(5, -26); g.stroke();
+      g.restore();
+    }
+    eisTex = new TH.CanvasTexture(cv);
+    eisTex.needsUpdate = true;
+    return eisTex;
+  }
+
   var SNOWN = 130;                 // vorher 260 - weniger, dafuer sichtbar rund
   function buildSnow() {
     var g = new TH.BufferGeometry();
@@ -3454,6 +3500,19 @@
       for (var ti = 0; ti < PATHS; ti++) {
         var tc = pathCenter(ti, tx2);
         if (Math.abs(tc - camPos.z) > 80) continue;
+        // Nur auf der Bahn, auf der man faehrt. Die Schleife laeuft ueber alle
+        // fuenf Bahnen, und die liegen 84 m auseinander - sonst lagen die
+        // Sterne 60 bis 85 m seitlich und damit ausserhalb des Bildes.
+        var he = rnd(tx2 * 0.83 + ti * 4.7);
+        if (he > 0.3 && Math.abs(tc - camPos.z) < 34) {
+          var eb = take("eisblume");
+          if (eb) {
+            var ez = tc + (rnd(tx2 * 1.7 + ti) * 2 - 1) * pathW(tx2) * 0.8;
+            eb.position.set(tx2 + he * 9, bodenM(tx2, ez) + 0.06, ez);
+            eb.rotation.z = he * 6.3;
+            eb.scale.setScalar(1.5 + he * 1.8);
+          }
+        }
         var tk = take("track");
         if (!tk) break;
         tk.position.set(tx2, bodenM(tx2, tc) + 0.22, tc);
