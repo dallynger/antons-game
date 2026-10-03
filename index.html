@@ -3612,7 +3612,11 @@
           var rl2 = take("rail");
           if (rl2) { rl2.position.set(x, gy + 0.06, 1.5); rl2.scale.set(7, 1, 1); }
         }
-        if (h3 < 0.04) { var tr = take("tram"); if (tr) tr.position.set(x, gy, 0); }
+        if (h3 < 0.04) {
+          var tr = take("tram");
+          // Eine Strassenbahn ist 17 m lang - da faehrt man nicht durch.
+          if (tr) { tr.position.set(x, gy, 0); addSolid(x, 0, 8.6, 3.8, 1); }
+        }
       }
       if (h < 0.22) { var lp = take("lamp"); if (lp) { var lz2 = z + (h2 < 0.5 ? -4.5 : 4.5); lp.position.set(x, gy, lz2); addSolid(x, lz2, 0.7, 5.5, 1); } }
       return;
@@ -3775,6 +3779,9 @@
         var kx = x + i * kw, kg = groundM(kx);
         var kz = pathCenter(2, kx) - koff;
         lmBox(kx, kg - 1.1, kz, kw, stufe + 1.1, 15, 0xdfe9f3);               // Stufenblock
+        // Die Kaskaden stehen 29 m neben der mittleren Bahn und sind damit
+        // erreichbar. Ohne das faehrt man mitten durch die Treppe.
+        addSolid(kx, kz, 7.5, stufe + 1.6, 1);
         lmBox(kx + 0.5, kg + stufe - 0.18, kz, kw * 0.72, 0.3, 11, 0x8ec3e8); // Wasser
         lmBox(kx, kg + stufe * 0.2, kz - 7.4, kw, stufe + 0.9, 1.6, 0xccd8e4); // Randmauern
         lmBox(kx, kg + stufe * 0.2, kz + 7.4, kw, stufe + 0.9, 1.6, 0xccd8e4);

@@ -271,6 +271,15 @@ Drei Dinge fressen das Blau, alle drei sind hier schon einmal zugeschnappt:
    bleiben unter 1, die Bahn hebt sich über den dunkleren Rand ab statt über
    Überhelligkeit.
 
+**Vollstaendigkeitspruefung Hindernisse** (03.10.2026, alle gezeichneten
+Pool-Arten durchgegangen). Fest: Bäume (alle fünf Arten), Stadthäuser,
+Fundstück-Häuser, Hütten, Laternen, Bänke, Schneemänner, Felsen,
+Straßenbahn, Kaskadenstufen, Herkules, Seilpfosten, Liegestühle, Wimpel,
+Glühweinbuden. **Bewusst nicht fest**: Pistenstangen (stehen alle 22 m beidseits
+jeder Bahn — fest wäre das Dauerfeuer, und echte Pistenstangen sind
+Weichplastik), Münzen, Blitze, Schanzen, sowie alles rein Flache: Spurrillen,
+Eisblumen, Schneebuckel, Schneewehen, Büschel, Steinchen, Gleise.
+
 **Was auf der Bahn liegt und was daneben steht.** Auf der Bahn liegen nur
 Dinge, die man *haben will*: Münzen, Schanzen, Blitze. Es gibt dort **keine
 Hindernisse** mehr — früher lagen Steine in der Spur, die ohne Vorwarnung
