@@ -1065,6 +1065,17 @@
       if (dx * dx + dz * dz > so.r * so.r) continue;
       if (hoehe > so.h) continue;
       S.lastTree = so.id;
+      // Drei Haerten statt zwei. Eine Pistenstange ist Weichplastik: sie
+      // knickt weg, gibt einen Klaps und kostet kaum Fahrt. Sie darf
+      // deshalb auch die Muenzserie nicht abreissen - sonst waere die Serie
+      // an der Bahnkante nie zu halten.
+      if (so.hart === 2) {
+        S.vx *= 0.93;
+        S.duck = 0.22;
+        puff(5, "hit");
+        S.shake = 0.18;
+        break;
+      }
       S.vx *= so.hart ? 0.42 : 0.62;
       if (S.phase === "fly" && so.hart) S.vy = Math.max(S.vy, 0.12);
       S.combo = 0; S.hits++;
@@ -3439,7 +3450,13 @@
         [-1, 1].forEach(function (sgn) {
           var po = take("pole");
           var pz = pc + sgn * (pathW(px) + 1.5);
-          if (po) po.position.set(px, bodenM(px, pz), pz);
+          if (po) {
+            po.position.set(px, bodenM(px, pz), pz);
+            // Radius grosszuegig: eine Stange ist duenn, aber Anton legt bei
+            // Tempo ueber einen Meter je Bild zurueck - mit 0.45 waere es
+            // reiner Zufall, ob die Pruefung ueberhaupt zuschlaegt.
+            addSolid(px, pz, 1.2, 2.6, 2);      // biegsam, Haerte 2
+          }
           // Schneewall am Bahnrand – gibt der Piste eine Kante statt einer leeren Fläche
           var dr = take("drift");
           if (dr) {

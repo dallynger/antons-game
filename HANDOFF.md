@@ -275,10 +275,20 @@ Drei Dinge fressen das Blau, alle drei sind hier schon einmal zugeschnappt:
 Pool-Arten durchgegangen). Fest: Bäume (alle fünf Arten), Stadthäuser,
 Fundstück-Häuser, Hütten, Laternen, Bänke, Schneemänner, Felsen,
 Straßenbahn, Kaskadenstufen, Herkules, Seilpfosten, Liegestühle, Wimpel,
-Glühweinbuden. **Bewusst nicht fest**: Pistenstangen (stehen alle 22 m beidseits
-jeder Bahn — fest wäre das Dauerfeuer, und echte Pistenstangen sind
-Weichplastik), Münzen, Blitze, Schanzen, sowie alles rein Flache: Spurrillen,
-Eisblumen, Schneebuckel, Schneewehen, Büschel, Steinchen, Gleise.
+Glühweinbuden, Pistenstangen. **Nicht fest**: Münzen, Blitze, Schanzen sowie
+alles rein Flache — Spurrillen, Eisblumen, Schneebuckel, Schneewehen, Büschel,
+Steinchen, Gleise.
+
+**Drei Härten**, nicht zwei. 1 = hart (Häuser, Hütten, Laternen, Buden, Felsen,
+Straßenbahn, Kaskaden, Herkules): Fahrt mal 0,42, im Flug ein Abprall.
+0 = weich (Bäume, Bänke, Liegestühle, Wimpel, Seilpfosten): mal 0,62.
+2 = biegsam (Pistenstangen): mal 0,93, kurzes Zucken, **ohne** die Münzserie
+abzureissen — sonst wäre die Serie an der Bahnkante nie zu halten.
+Der Radius einer Stange ist mit 1,2 m großzügig gesetzt: sie ist dünn, aber
+Anton legt bei Tempo über einen Meter je Bild zurück, und mit 0,45 wäre es
+reiner Zufall, ob die Prüfung zuschlägt. Gemessen: ein Lauf in der Spur
+berührt keine Stange (701 m mit und ohne), erst wer über die Kante fährt
+sammelt sie ein.
 
 **Was auf der Bahn liegt und was daneben steht.** Auf der Bahn liegen nur
 Dinge, die man *haben will*: Münzen, Schanzen, Blitze. Es gibt dort **keine
